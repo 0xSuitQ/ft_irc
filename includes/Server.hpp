@@ -7,6 +7,8 @@
 # include <iostream>
 # include <unistd.h>
 # include <poll.h>
+# include <fcntl.h>
+# include "Client.hpp"
 
 class Server {
 public:
@@ -37,7 +39,19 @@ public:
 	class FailedConnectionException : public std::exception {
 		public:
 		virtual const char *what() const throw() {
-			return "Error: cannot conncet a client";
+			return "Error: cannot connect a client";
+		}
+	};
+	class PollCountException : public std::exception {
+		public:
+		virtual const char *what() const throw() {
+			return "Error: poll()";
+		}
+	};
+	class AcceptException : public std::exception {
+		public:
+		virtual const char *what() const throw() {
+			return "Error: failed to accept a client";
 		}
 	};
 
@@ -45,6 +59,14 @@ private:
 	int					_serverSocket;
 	int					_port;
 	std::vector<int>	_clientSockets;
+
+	std::vector<struct pollfd>		_pfds;
+	std::vector<Client>				_clients;
+
+	void	_mainLoop();
+	void	_addClient(int new_fd);
+	void	_handleNewConnection();
+	void	_hadleData(int fd);
 
 };
 
