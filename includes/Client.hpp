@@ -13,10 +13,13 @@ public:
 	Client(int new_fd);
 	~Client();
 
-	int	getFd();
+	const int	&getFd();
+	void		appendToBuffer(const char* data, size_t len);
+	bool		getCompleteMessage(std::string& message);
 
 private:
-	int	_client_fd;
+	int			_client_fd;
+	std::string _buffer;
 };
 
 #endif
