@@ -13,6 +13,9 @@ public:
 	Client(int new_fd);
 	~Client();
 
+	// Client& operator=(const Client& other);
+	bool operator==(const Client& other) const;
+
 	const int	&getFd() const;
 	void		appendToBuffer(const char* data, size_t len);
 	bool		getCompleteMessage(std::string& message);

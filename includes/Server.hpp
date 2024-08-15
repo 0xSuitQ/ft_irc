@@ -11,14 +11,18 @@
 # include <sstream>
 # include <map>
 # include "Client.hpp"
+# include "Channel.hpp"
+# include "Utils.hpp"
 
 class Server {
 public:
-	Server();
+	Server(char **av);
 	~Server();
 
 	void	createSocket();
 	void	acceptClient();
+	void	setPass(std::string pass);
+	void	setPort(int port);
 
 	class SocketCreationException : public std::exception {
 		public:
@@ -77,17 +81,20 @@ private:
 
 	std::vector<struct pollfd>		_pfds;
 	std::vector<Client>				_clients;
+	std::vector<Channel>			_channels;
 
 	void	_mainLoop();
 	void	_handleNewConnection();
 	void	_handleData(int sender_fd);
 	void	_removeClient(int fd);
 	void	_parse_cmd(std::string& message, int sender_fd);
-	bool	_validateUser(std::string& namem, int flag) const;
+	bool	_validateUser(std::string& namem, int flag, int fd) const;
+	bool	_checkAuth(Client& client);
 
 	void	_pass(std::string& message, int sender_fd);
 	void	_user(std::string& message, int sender_fd);
 	void	_nick(std::string& message, int sender_fd);
+	void	_join(std::string& message, int sender_fd);
 
 	std::vector<std::string>	_split(std::string& str);
 
@@ -121,6 +128,14 @@ struct CompareClientUser {
     bool operator()(const Client& client) const {
         return client.getUsername() == username;
     }
+};
+
+struct CompareChannelName {
+	std::string channel_name;
+	CompareChannelName(const std::string& channel_name) : channel_name(channel_name) {}
+	bool operator()(const Channel& channel) const {
+		return channel.getName() == channel_name;
+	}
 };
 
 #endif
