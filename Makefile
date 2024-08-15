@@ -6,8 +6,10 @@ HSRCS := ./includes
 OBJ_DIR := obj
 
 SRC = main.cpp \
-	Server.cpp \
+	Utils.cpp \
+	Channel.cpp \
 	Client.cpp \
+	Server.cpp \
 
 OBJS := $(patsubst %.cpp,$(OBJ_DIR)/%.o,$(SRC))
 

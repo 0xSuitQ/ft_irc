@@ -6,6 +6,17 @@ Client::Client(int new_fd) : _client_fd(new_fd), _authenticated(false) {}
 
 Client::~Client() {}
 
+// Client& operator=(const Client& other) {
+// 	if (this != &other) {
+
+// 	}
+// 	return *this;
+// }
+
+bool Client::operator==(const Client& other) const {
+	return this->getNickname() == other.getNickname() && this->getUsername() == other.getUsername();
+}
+
 const int	&Client::getFd() const {
 	return _client_fd;
 }
