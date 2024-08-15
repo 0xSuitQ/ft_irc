@@ -8,6 +8,8 @@
 # include <unistd.h>
 # include <poll.h>
 # include <fcntl.h>
+# include <sstream>
+# include <map>
 # include "Client.hpp"
 
 class Server {
@@ -71,6 +73,7 @@ private:
 	int					_server_socket;
 	int					_port;
 	int					_fd_count;
+	std::string			_server_pass;
 
 	std::vector<struct pollfd>		_pfds;
 	std::vector<Client>				_clients;
@@ -79,8 +82,18 @@ private:
 	void	_handleNewConnection();
 	void	_handleData(int sender_fd);
 	void	_removeClient(int fd);
+	void	_parse_cmd(std::string& message, int sender_fd);
+	bool	_validateUser(std::string& namem, int flag) const;
+
+	void	_pass(std::string& message, int sender_fd);
+	void	_user(std::string& message, int sender_fd);
+	void	_nick(std::string& message, int sender_fd);
+
+	std::vector<std::string>	_split(std::string& str);
 
 };
+
+typedef void (Server::*CommandFunc)(std::string&, int);
 
 struct CompareClientFd {
 	int fd;
@@ -92,6 +105,22 @@ struct ComparePollFd {
 	int fd;
 	ComparePollFd(int fd) : fd(fd) {}
 	bool operator()(const pollfd& pfd) { return pfd.fd == fd; }
+};
+
+struct CompareClientNick {
+	std::string nickname;
+	CompareClientNick(const std::string& nickname) : nickname(nickname) {}
+	bool operator()(const Client& client) const {
+		return client.getNickname() == nickname;
+	}
+};
+
+struct CompareClientUser {
+    std::string username;
+    CompareClientUser(const std::string& username) : username(username) {}
+    bool operator()(const Client& client) const {
+        return client.getUsername() == username;
+    }
 };
 
 #endif

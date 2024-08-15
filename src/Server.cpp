@@ -35,6 +35,23 @@ void	Server::createSocket() {
 	_mainLoop();
 }
 
+void Server::_parse_cmd(std::string& message, int sender_fd) {
+	std::map<std::string, CommandFunc> preset_cmds;
+    preset_cmds["PASS"] = &Server::_pass;
+    preset_cmds["USER"] = &Server::_user;
+	preset_cmds["NICK"] = &Server::_nick;
+	std::vector<std::string> cmds = _split(message);
+	if (cmds.empty())
+		return;
+	std::map<std::string, CommandFunc>::iterator cmd_func = preset_cmds.find(cmds[0]);
+    if (cmd_func != preset_cmds.end()) {
+        (this->*(cmd_func->second))(message, sender_fd);
+    } else {
+        // Handle unknown command
+		return;
+    }
+}
+
 void	Server::_handleNewConnection() {
 	char			buf[] = "Welcome\n";
 	struct pollfd	new_client;
@@ -88,7 +105,7 @@ void Server::_handleData(int sender_fd) {
 		Client& client = *std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
 		client.appendToBuffer(buf, nbytes); // Filling up the buffer till it has \n in it
 		std::string message;
-		while (client.getCompleteMessage(message)) { // Is executed if only \n was not found in the received data
+		while (client.getCompleteMessage(message)) { // Is executed if only \n was found in the received data
 			std::cout << "Received complete message: " << message << std::endl;
 
 			// Send to all clients except the sender
@@ -97,6 +114,10 @@ void Server::_handleData(int sender_fd) {
 					if (send(it->getFd(), message.c_str(), message.length(), 0) == -1)
 						perror("Error: send()");
 			}
+
+			// Parsing of the data
+			_parse_cmd(message, sender_fd);
+
 		}
 	} else if (nbytes == 0) {
 		// Client disconnected
@@ -104,7 +125,7 @@ void Server::_handleData(int sender_fd) {
 		_removeClient(sender_fd);
 	} else {
 		if (errno != EAGAIN && errno != EWOULDBLOCK) {
-			_removeClient(sender_fd); // TODO: mb concider RecvException in here as well
+			_removeClient(sender_fd);
 		}
 	}
 }
@@ -118,4 +139,118 @@ void Server::_removeClient(int fd) {
 
 	close(fd);
 	_fd_count--;
+}
+
+std::vector<std::string> Server::_split(std::string& str) {
+	std::istringstream			iss(str);
+	std::vector<std::string>	commands;
+	std::string					command;
+
+	while (iss >> command)
+		commands.push_back(command);
+	return commands;
+}
+
+void	Server::_pass(std::string& message, int sender_fd) {
+	message = message.substr(4);
+	Client& client = *std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
+	size_t pos = message.find_first_not_of(" \t\v\f");
+    if (pos != std::string::npos) {
+        message = message.substr(pos);
+    } else {
+        message = "";
+    }
+
+	if (!client.getAuth()) {
+		if (message == _server_pass)
+			client.setAuth(true);
+		//else
+			// TODO: send error incorrect password
+	} // else
+		// send error already authenticated 
+}
+
+bool	Server::_validateUser(std::string& name, int flag) const { // flag 0 == username, flag 1 == nickname
+	std::string forbidden = "!@#$%^&*()?/\\{}[]-<>,'\"|+;:";
+	if (std::find_if(name.begin(), name.end(), ::isspace) != name.end()) {
+		(flag == 0) ? write(1, "error\n", 7) : write(1, "error\n", 7);
+		return false; // TODO: error username/nickname cannot contain whitespaces
+	}
+	if (name.size() < 5) {
+		(flag == 0) ? write(1, "error\n", 7) : write(1, "error\n", 7);
+		return false; // TODO: error username/nickname is too short
+	}
+	if (name.size() > 12) {
+		(flag == 0) ? write(1, "error\n", 7) : write(1, "error\n", 7);
+		return false; // TODO: error username/nickname is too long
+	}
+	size_t pos = name.find_first_of(forbidden);
+	if (pos != std::string::npos) {
+		(flag == 0) ? write(1, "error\n", 7) : write(1, "error\n", 7);
+		return false; // TODO: error username/nickname contains forbidden symbols
+	}
+
+	return true;
+}
+
+void	Server::_user(std::string& message, int sender_fd) {
+	message = message.substr(4);
+	Client& client = *std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
+	size_t pos = message.find_first_not_of(" \t\v\f");
+	if (pos != std::string::npos) {
+		message = message.substr(pos);
+	} else {
+		write(2, "error\n", 7);
+		message = "";
+		// send error Empty nickname
+	}
+
+	std::vector<Client>::iterator it = std::find_if(_clients.begin(), _clients.end(), CompareClientUser(message));
+	if (it != _clients.end() && it->getFd() != sender_fd) {
+		write(2, "error\n", 7);
+		return ;// TODO: Username is occupied by another client
+	} else {
+		// Username is not occupied or is occupied by the same client
+		if (!client.getUsername().empty()){
+			write(2, "error\n", 7);
+			return ;// send error Username is already set up
+		}
+		else {
+			if (_validateUser(message, 0)) {
+				client.setUsername(message);
+				// TODO: notify username is succesfully set up
+			}
+		}
+	}
+}
+
+void	Server::_nick(std::string& message, int sender_fd) {
+	message = message.substr(4);
+	Client& client = *std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
+	size_t pos = message.find_first_not_of(" \t\v\f");
+	if (pos != std::string::npos) {
+		message = message.substr(pos);
+	} else {
+		message = "";
+		// send error Empty nickname
+		write(2, "error\n", 7);
+	}
+
+	std::vector<Client>::iterator it = std::find_if(_clients.begin(), _clients.end(), CompareClientNick(message));
+	if (it != _clients.end() && it->getFd() != sender_fd) {
+		write(2, "error\n", 7);
+		return ;// TODO: Nickname is occupied by another client
+	} else {
+		// Nickname is not occupied or is occupied by the same client
+		if (message == client.getNickname()){
+			write(2, "error\n", 7);
+			return ;// send error Name hasn't been changed
+		}
+		else {
+			if (_validateUser(message, 1)) {
+				client.setNickname(message);
+				// TODO: notify nickname is succesfully set up
+			}
+		}
+	}
 }
