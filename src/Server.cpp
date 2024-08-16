@@ -1,6 +1,8 @@
 #include "Server.hpp"
 #include "Channel.hpp"
 
+// TODO: CLeaning client after disconecting
+
 Server::Server(char **av) {
 	this->_server_socket = -1;
 	this->_port = -1;
@@ -68,6 +70,7 @@ void Server::_parse_cmd(std::string& message, int sender_fd) {
     preset_cmds["USER"] = &Server::_user;
 	preset_cmds["NICK"] = &Server::_nick;
 	preset_cmds["JOIN"] = &Server::_join;
+	preset_cmds["DM"] = &Server::_directMessage;
 	std::vector<std::string> cmds = _split(message);
 	if (cmds.empty())
 		return;
@@ -76,6 +79,12 @@ void Server::_parse_cmd(std::string& message, int sender_fd) {
         (this->*(cmd_func->second))(message, sender_fd);
     } else {
         // Handle unknown command
+		Client& client = *std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
+		if (client.getInChannel()) {
+			_client_channel[client]->broadcastMessage(client, message);
+		}
+		else
+			sendResponse("Unknown command or not connected to a channel\n", sender_fd);
 		return;
     }
 }
@@ -137,11 +146,11 @@ void Server::_handleData(int sender_fd) {
 			std::cout << "Received complete message: " << message << std::endl;
 
 			// Send to all clients except the sender
-			for (std::vector<Client>::iterator it = _clients.begin(); it != _clients.end(); ++it) {
-				if (it->getFd() != sender_fd && it->getFd() != _server_socket)
-					if (send(it->getFd(), message.c_str(), message.length(), 0) == -1)
-						perror("Error: send()");
-			}
+			// for (std::vector<Client>::iterator it = _clients.begin(); it != _clients.end(); ++it) {
+			// 	if (it->getFd() != sender_fd && it->getFd() != _server_socket)
+			// 		if (send(it->getFd(), message.c_str(), message.length(), 0) == -1)
+			// 			perror("Error: send()");
+			// }
 
 			// Parsing of the data
 			_parse_cmd(message, sender_fd);
@@ -155,6 +164,13 @@ void Server::_handleData(int sender_fd) {
 		if (errno != EAGAIN && errno != EWOULDBLOCK) {
 			_removeClient(sender_fd);
 		}
+	}
+}
+
+void Server::sendPrivateMessage(Client& sender, Client& receiver, const std::string& message) {
+	if (sender != receiver) {
+		receiver.receiveMessage(sender.getNickname()); //TODO: time and name of sender
+		receiver.receiveMessage(message);
 	}
 }
 
@@ -252,6 +268,44 @@ void	Server::_user(std::string& message, int sender_fd) {
 	}
 }
 
+void Server::_directMessage(std::string& message, int sender_fd) {
+	std::vector<Client>::iterator sender_it = std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
+	std::vector<std::string> splitted_cmd = _split(message);
+
+	if (!_checkAuth(*sender_it))
+		return;
+	if (!validateUserCreds(*sender_it, sender_fd))
+		return;
+
+	//Check if receiver is present
+	std::vector<Client>::iterator receiver_it = std::find_if(_clients.begin(), _clients.end(), CompareClientNick(splitted_cmd[1]));
+	if (*sender_it == *receiver_it) {
+		sendResponse("Unable to send it back to you\n", sender_fd);
+		return;
+	} else if (receiver_it == _clients.end()) {
+		sendResponse("No client found\n", sender_fd);
+		return;
+	}
+
+	//Check if command is correct
+	if (splitted_cmd.size() < 3) {
+		if (splitted_cmd.size() == 1) {
+			sendResponse("No nickname provided\n", sender_fd);
+		} else {
+			sendResponse("Message cannot be empty\n", sender_fd);
+		}
+		return;
+	}
+
+	std::string time = getCurrentTime();
+	std::string direct_message = time + " [Private] " + sender_it->getNickname() + ": ";
+	for (std::vector<std::string>::iterator it = splitted_cmd.begin() + 2; it != splitted_cmd.end(); ++it) {
+		direct_message += *it + " ";
+	}
+	direct_message += "\n";
+	receiver_it->receiveMessage(direct_message);
+}
+
 void	Server::_nick(std::string& message, int sender_fd) {
 	message = message.substr(4);
 	Client& client = *std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
@@ -290,7 +344,7 @@ void	Server::_join(std::string& msg, int sender_fd) { // TODO: parsing error han
 		return;
 
 	std::vector<Channel>::iterator it = std::find_if(_channels.begin(), _channels.end(), CompareChannelName(splitted_cmd[0]));
-	if (!it->validateUserCreds(client, sender_fd))
+	if (!validateUserCreds(client, sender_fd))
 		return;
 
 	std::string password = "";
@@ -299,11 +353,26 @@ void	Server::_join(std::string& msg, int sender_fd) { // TODO: parsing error han
     }
 
 	if (it == _channels.end()) {
+		// If client already in channel leave the channel
+		if (client.getInChannel()) {
+			_client_channel[client]->removeClientFromChannel(client);
+			sendResponse("You left the old channel", sender_fd);
+		}
 		Channel new_channel(splitted_cmd[0], client);
 		sendResponse("No channels found, new channel has been created\n", sender_fd);
 		_channels.push_back(new_channel);
+		_client_channel[client] = &_channels.back();
+		if (_client_channel[client]->isOperator(client))
+			sendResponse("You are the operator here\n", sender_fd);
 	} else {
+		if (client.getInChannel()) {
+			_client_channel[client]->removeClientFromChannel(client);
+			sendResponse("You left the old channel", sender_fd);
+		}
 		it->addClientToChannel(client, splitted_cmd[1], sender_fd, 0);
+		_client_channel[client] = &(*it);
+		if (_client_channel[client]->isOperator(client))
+			sendResponse("You are still the operator here\n", sender_fd);
 	}
 }
 

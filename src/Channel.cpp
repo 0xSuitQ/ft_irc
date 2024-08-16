@@ -21,9 +21,19 @@ Channel::Channel(const std::string name, Client& client) {
 	_clients.push_back(client);
 	_operators.push_back(client);
 	_clients_count++;
+	client.setInChannel(true);
 }
 
 Channel::~Channel() {}
+
+void Channel::broadcastMessage(Client& client, const std::string& message) {
+	std::string time = getCurrentTime();
+	std::string broadcast_message = time + " " + client.getNickname() + ": " + message + "\n";
+	for (std::vector<Client>::iterator it = _clients.begin(); it != _clients.end(); ++it) {
+		if (*it != client)
+			it->receiveMessage(broadcast_message);
+	}
+}
 
 void Channel::addClientToChannel(Client& client, std::string pass, int fd, bool invited) {
 	if (!validateUserCreds(client, fd)) {
@@ -40,16 +50,19 @@ void Channel::addClientToChannel(Client& client, std::string pass, int fd, bool 
 	} else {
 		_clients.push_back(client);
 		_clients_count++;
+		client.setInChannel(true);
+		
 		sendResponse("Succesfully connected to the channel\n", fd);
 	}
 }
 
-bool	Channel::validateUserCreds(Client& client, int fd) {
-	if (client.getNickname().empty() || client.getUsername().empty()) {
-		sendResponse("Invalid client data\n", fd);
-		return false;
+void Channel::removeClientFromChannel(Client& client) {
+	for (std::vector<Client>::iterator it = _clients.begin(); it != _clients.end(); ++it) {
+		if (*it == client) {
+			_clients.erase(it);
+			break;
+		} 
 	}
-	return true;
 }
 
 void Channel::setName(std::string name) { _name = name; }
@@ -110,4 +123,12 @@ void Channel::setOperatorPrivilege(bool value) {
 void Channel::setUserLimit(int value) {
     _clients_limit = value;
     modes.has_clients_limit = (value > 0);
+}
+
+bool validateUserCreds(Client& client, int fd) {
+	if (client.getNickname().empty() || client.getUsername().empty()) {
+		sendResponse("Invalid client data\n", fd);
+		return false;
+	}
+	return true;
 }
