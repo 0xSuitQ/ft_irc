@@ -21,7 +21,8 @@ public:
 	void	removeOperator(Client& remover, Client& target, int fd);
 	void	setOperator(Client& giver, Client& receiver, int fd);
 	bool	isOperator(Client& client);
-	bool	validateUserCreds(Client &client, int fd);
+	void	removeClientFromChannel(Client& client);
+	void	broadcastMessage(Client& client, const std::string& message);
 	
 	std::string	getName() const;
 
@@ -43,5 +44,7 @@ private:
 	} modes;
 
 };
+
+bool	validateUserCreds(Client& client, int fd);
 
 #endif

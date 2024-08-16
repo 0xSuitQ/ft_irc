@@ -15,6 +15,8 @@ public:
 
 	// Client& operator=(const Client& other);
 	bool operator==(const Client& other) const;
+	bool operator!=(const Client& other) const;
+	bool operator<(const Client& other) const;
 
 	const int	&getFd() const;
 	void		appendToBuffer(const char* data, size_t len);
@@ -25,13 +27,18 @@ public:
 	std::string	getNickname() const;
 	void		setUsername(std::string& str);
 	std::string	getUsername() const;
+	void		setInChannel(bool value);
+	bool		getInChannel() const;
+	void		receiveMessage(const std::string& message);
 
 private:
 	int			_client_fd;
 	bool		_authenticated;
+	bool		_in_channel;
 	std::string _buffer;
 	std::string	_nickname;
 	std::string	_username;
+	
 };
 
 #endif

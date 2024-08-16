@@ -23,6 +23,7 @@ public:
 	void	acceptClient();
 	void	setPass(std::string pass);
 	void	setPort(int port);
+	void	sendPrivateMessage(Client& sender, Client& receiver, const std::string& message);
 
 	class SocketCreationException : public std::exception {
 		public:
@@ -82,6 +83,7 @@ private:
 	std::vector<struct pollfd>		_pfds;
 	std::vector<Client>				_clients;
 	std::vector<Channel>			_channels;
+	std::map<Client, Channel*>		_client_channel;
 
 	void	_mainLoop();
 	void	_handleNewConnection();
@@ -95,6 +97,7 @@ private:
 	void	_user(std::string& message, int sender_fd);
 	void	_nick(std::string& message, int sender_fd);
 	void	_join(std::string& message, int sender_fd);
+	void	_directMessage(std::string& message, int sender_fd);
 
 	std::vector<std::string>	_split(std::string& str);
 
