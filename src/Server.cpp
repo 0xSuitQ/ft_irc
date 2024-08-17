@@ -343,36 +343,37 @@ void	Server::_join(std::string& msg, int sender_fd) { // TODO: parsing error han
 	if (!_checkAuth(client))
 		return;
 
-	std::vector<Channel>::iterator it = std::find_if(_channels.begin(), _channels.end(), CompareChannelName(splitted_cmd[0]));
+	std::vector<Channel*>::iterator it = std::find_if(_channels.begin(), _channels.end(), CompareChannelName(splitted_cmd[1]));
 	if (!validateUserCreds(client, sender_fd))
 		return;
 
 	std::string password = "";
-    if (splitted_cmd.size() > 1) {
-        password = splitted_cmd[1];
+    if (splitted_cmd.size() > 2) { // TODO
+        password = splitted_cmd[2];
     }
 
 	if (it == _channels.end()) {
 		// If client already in channel leave the channel
 		if (client.getInChannel()) {
 			_client_channel[client]->removeClientFromChannel(client);
-			sendResponse("You left the old channel", sender_fd);
+			sendResponse("You left the old channel\n", sender_fd);
 		}
-		Channel new_channel(splitted_cmd[0], client);
+		Channel *new_channel = new Channel(splitted_cmd[1], client);
+		// std::cout << "Address of original channel: " << new_channel << "\n";
 		sendResponse("No channels found, new channel has been created\n", sender_fd);
 		_channels.push_back(new_channel);
-		_client_channel[client] = &_channels.back();
+		_client_channel[client] = new_channel;
 		if (_client_channel[client]->isOperator(client))
 			sendResponse("You are the operator here\n", sender_fd);
 	} else {
 		if (client.getInChannel()) {
 			_client_channel[client]->removeClientFromChannel(client);
-			sendResponse("You left the old channel", sender_fd);
+			sendResponse("You left the old channel\n", sender_fd);
 		}
-		it->addClientToChannel(client, splitted_cmd[1], sender_fd, 0);
-		_client_channel[client] = &(*it);
+		(*it)->addClientToChannel(client, splitted_cmd[1], sender_fd, 0);
+		_client_channel[client] = *it;
 		if (_client_channel[client]->isOperator(client))
-			sendResponse("You are still the operator here\n", sender_fd);
+			sendResponse("You are the operator here\n", sender_fd);
 	}
 }
 
