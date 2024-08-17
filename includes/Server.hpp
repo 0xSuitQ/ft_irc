@@ -82,7 +82,7 @@ private:
 
 	std::vector<struct pollfd>		_pfds;
 	std::vector<Client>				_clients;
-	std::vector<Channel>			_channels;
+	std::vector<Channel*>			_channels;
 	std::map<Client, Channel*>		_client_channel;
 
 	void	_mainLoop();
@@ -136,8 +136,8 @@ struct CompareClientUser {
 struct CompareChannelName {
 	std::string channel_name;
 	CompareChannelName(const std::string& channel_name) : channel_name(channel_name) {}
-	bool operator()(const Channel& channel) const {
-		return channel.getName() == channel_name;
+	bool operator()(const Channel* channel) const {
+		return channel->getName() == channel_name;
 	}
 };
 
