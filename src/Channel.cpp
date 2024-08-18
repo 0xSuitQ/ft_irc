@@ -57,12 +57,11 @@ void Channel::addClientToChannel(Client& client, std::string pass, int fd, bool 
 }
 
 void Channel::removeClientFromChannel(Client& client) {
-	for (std::vector<Client>::iterator it = _clients.begin(); it != _clients.end(); ++it) {
-		if (*it == client) {
-			_clients.erase(it);
-			break;
-		} 
+	if (this->isOperator(client)) {
+		_operators.erase(std::remove(_operators.begin(), _operators.end(), client), _operators.end());
 	}
+	_clients.erase(std::remove(_clients.begin(), _clients.end(), client), _clients.end());
+	client.setInChannel(false);
 }
 
 void Channel::setName(std::string name) { _name = name; }
@@ -79,7 +78,7 @@ void Channel::setOperator(Client& giver, Client& receiver, int fd) {
 			}
 		}
 	} else {
-		sendResponse("You do not have enough rights to do that\n", fd);
+		sendResponse("You are not allowed to do that\n", fd);
 	}
 }
 
@@ -93,8 +92,12 @@ void Channel::removeOperator(Client& remover, Client& target, int fd) {
 			}
 		}
 	} else {
-		sendResponse("You do not have enough rights to do that\n", fd);
+		sendResponse("You are not allowed to do that\n", fd);
 	}
+}
+
+std::vector<Client>	&Channel::getClients() {
+	return _clients;
 }
 
 bool Channel::isOperator(Client& client) {

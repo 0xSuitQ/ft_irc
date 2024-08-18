@@ -24,7 +24,8 @@ public:
 	void	removeClientFromChannel(Client& client);
 	void	broadcastMessage(Client& client, const std::string& message);
 	
-	std::string	getName() const;
+	std::string			getName() const;
+	std::vector<Client>	&getClients();
 
 private:
 	std::string			_name;

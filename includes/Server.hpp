@@ -81,9 +81,9 @@ private:
 	std::string			_server_pass;
 
 	std::vector<struct pollfd>		_pfds;
-	std::vector<Client>				_clients;
+	std::vector<Client*>			_clients;
 	std::vector<Channel*>			_channels;
-	std::map<Client, Channel*>		_client_channel;
+	std::map<Client*, Channel*>		_client_channel;
 
 	void	_mainLoop();
 	void	_handleNewConnection();
@@ -97,6 +97,7 @@ private:
 	void	_user(std::string& message, int sender_fd);
 	void	_nick(std::string& message, int sender_fd);
 	void	_join(std::string& message, int sender_fd);
+	void	_kick(std::string& message, int sender_fd);
 	void	_directMessage(std::string& message, int sender_fd);
 
 	std::vector<std::string>	_split(std::string& str);
@@ -108,7 +109,7 @@ typedef void (Server::*CommandFunc)(std::string&, int);
 struct CompareClientFd {
 	int fd;
 	CompareClientFd(int fd) : fd(fd) {}
-	bool operator()(Client& client) { return client.getFd() == fd; }
+	bool operator()(Client* client) { return client->getFd() == fd; }
 };
 
 struct ComparePollFd {
@@ -120,6 +121,14 @@ struct ComparePollFd {
 struct CompareClientNick {
 	std::string nickname;
 	CompareClientNick(const std::string& nickname) : nickname(nickname) {}
+	bool operator()(const Client* client) const {
+		return client->getNickname() == nickname;
+	}
+};
+
+struct CompareClientNickRef {
+	std::string nickname;
+	CompareClientNickRef(const std::string& nickname) : nickname(nickname) {}
 	bool operator()(const Client& client) const {
 		return client.getNickname() == nickname;
 	}
@@ -128,8 +137,8 @@ struct CompareClientNick {
 struct CompareClientUser {
     std::string username;
     CompareClientUser(const std::string& username) : username(username) {}
-    bool operator()(const Client& client) const {
-        return client.getUsername() == username;
+    bool operator()(const Client* client) const {
+        return client->getUsername() == username;
     }
 };
 
@@ -139,6 +148,14 @@ struct CompareChannelName {
 	bool operator()(const Channel* channel) const {
 		return channel->getName() == channel_name;
 	}
+};
+
+struct CompareClientNickMap {
+    std::string nick;
+    CompareClientNickMap(const std::string& nick) : nick(nick) {}
+    bool operator()(const std::pair<const Client*, Channel*>& pair) const {
+        return pair.first->getNickname() == nick;
+    }
 };
 
 #endif
