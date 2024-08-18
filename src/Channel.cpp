@@ -29,37 +29,48 @@ Channel::~Channel() {}
 void Channel::broadcastMessage(Client& client, const std::string& message) {
 	std::string time = getCurrentTime();
 	std::string broadcast_message = time + " " + client.getNickname() + ": " + message + "\n";
+	 debugPrint();
 	for (std::vector<Client>::iterator it = _clients.begin(); it != _clients.end(); ++it) {
 		if (*it != client)
 			it->receiveMessage(broadcast_message);
 	}
 }
 
-void Channel::addClientToChannel(Client& client, std::string pass, int fd, bool invited) {
+void Channel::debugPrint() const {
+    std::cout << "Channel at " << this << ":\n";
+    std::cout << "Clients vector address: " << &_clients << "\n";
+    std::cout << "Clients vector size: " << _clients.size() << "\n";
+    std::cout << "Clients vector capacity: " << _clients.capacity() << "\n";
+}
+
+bool Channel::addClientToChannel(Client& client, int fd, bool invited) {
 	if (!validateUserCreds(client, fd)) {
-		return;
+		return false;
 	}
 	if (modes.invite_only && !invited) {
 		sendResponse("Could not connect to the channel. The channel is invite-only\n", fd);
+		return false;
 	}
-	else if (modes.has_key && pass != _key) {
-		sendResponse("Incorrect password to the channel\n", fd);
-	}
+	// else if (modes.has_key && pass != _key) { // Mb remove it since check it from outer scope
+	// 	sendResponse("Wrong password to the channel\n", fd);
+	// 	return false;
+	// }
 	if (modes.has_clients_limit && _clients_count >= _clients_limit) {
 		sendResponse("Could not connect to the channel. Too many clients in the channel\n", fd);
+		return false;
 	} else {
 		_clients.push_back(client);
 		_clients_count++;
 		client.setInChannel(true);
-		
 		sendResponse("Succesfully connected to the channel\n", fd);
+		return true;
 	}
 }
 
 void Channel::removeClientFromChannel(Client& client) {
-	if (this->isOperator(client)) {
-		_operators.erase(std::remove(_operators.begin(), _operators.end(), client), _operators.end());
-	}
+	// if (this->isOperator(client)) {
+	// 	_operators.erase(std::remove(_operators.begin(), _operators.end(), client), _operators.end());
+	// }
 	_clients.erase(std::remove(_clients.begin(), _clients.end(), client), _clients.end());
 	client.setInChannel(false);
 }
@@ -117,6 +128,18 @@ void Channel::setTopicRestricted(bool value) {
 void Channel::setKey(const std::string& value) {
     _key = value;
     modes.has_key = !value.empty();
+}
+
+std::string Channel::getKey() const{
+	return _key;
+}
+
+bool Channel::getHasKey() const{
+	return modes.has_key;
+}
+
+bool Channel::getInviteOnly() const {
+	return modes.invite_only;
 }
 
 void Channel::setOperatorPrivilege(bool value) {

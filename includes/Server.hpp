@@ -90,13 +90,15 @@ private:
 	void	_handleData(int sender_fd);
 	void	_removeClient(int fd);
 	void	_parse_cmd(std::string& message, int sender_fd);
-	bool	_validateUser(std::string& namem, int flag, int fd) const;
-	bool	_checkAuth(Client& client);
+	bool	_validateName(std::string& namem, int fd, std::string target, int flag) const;
+	bool	_checkAuth(Client& client, int flag);
+	bool	_validateChannelPass(std::string &msg, Channel *channel, int fd);
 
 	void	_pass(std::string& message, int sender_fd);
 	void	_user(std::string& message, int sender_fd);
 	void	_nick(std::string& message, int sender_fd);
 	void	_join(std::string& message, int sender_fd);
+	void	_invite(std::string& message, int sender_fd);
 	void	_kick(std::string& message, int sender_fd);
 	void	_directMessage(std::string& message, int sender_fd);
 
