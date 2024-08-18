@@ -17,7 +17,7 @@ public:
 	void	setKey(const std::string& value);
 	void	setOperatorPrivilege(bool value);
 	void	setUserLimit(int value);
-	void	addClientToChannel(Client& client, std::string pass, int fd, bool invited);
+	bool	addClientToChannel(Client& client, int fd, bool invited);
 	void	removeOperator(Client& remover, Client& target, int fd);
 	void	setOperator(Client& giver, Client& receiver, int fd);
 	bool	isOperator(Client& client);
@@ -25,7 +25,12 @@ public:
 	void	broadcastMessage(Client& client, const std::string& message);
 	
 	std::string			getName() const;
+	std::string			getKey() const;
+	bool				getHasKey() const;
+	bool				getInviteOnly() const;
 	std::vector<Client>	&getClients();
+
+	void debugPrint() const ;
 
 private:
 	std::string			_name;

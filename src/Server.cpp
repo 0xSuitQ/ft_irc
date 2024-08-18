@@ -64,33 +64,6 @@ void	Server::createSocket() {
 	_mainLoop();
 }
 
-void Server::_parse_cmd(std::string& message, int sender_fd) {
-	std::map<std::string, CommandFunc> preset_cmds;
-    preset_cmds["PASS"] = &Server::_pass;
-    preset_cmds["USER"] = &Server::_user;
-	preset_cmds["NICK"] = &Server::_nick;
-	preset_cmds["JOIN"] = &Server::_join;
-	preset_cmds["KICK"] = &Server::_kick;
-	preset_cmds["DM"] = &Server::_directMessage;
-	std::vector<std::string> cmds = _split(message);
-	if (cmds.empty())
-		return;
-	std::map<std::string, CommandFunc>::iterator cmd_func = preset_cmds.find(cmds[0]);
-    if (cmd_func != preset_cmds.end()) {
-        (this->*(cmd_func->second))(message, sender_fd);
-    } else {
-        // Handle unknown command
-		Client* client = *std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
-		std::cout << "CLient in channel" << client->getInChannel() << "\n";
-		if (client->getInChannel()) {
-			_client_channel[client]->broadcastMessage(*client, message);
-		}
-		else
-			sendResponse("Unknown command or not connected to a channel\n", sender_fd);
-		return;
-    }
-}
-
 void	Server::_handleNewConnection() {
 	char			buf[] = "Welcome\n";
 	struct pollfd	new_client;
@@ -133,6 +106,35 @@ void Server::_mainLoop() {
 	}
 }
 
+void Server::_parse_cmd(std::string& message, int sender_fd) {
+	std::map<std::string, CommandFunc> preset_cmds;
+    preset_cmds["PASS"] = &Server::_pass;
+    preset_cmds["USER"] = &Server::_user;
+	preset_cmds["NICK"] = &Server::_nick;
+	preset_cmds["JOIN"] = &Server::_join;
+	preset_cmds["INVITE"] = &Server::_invite;
+	preset_cmds["KICK"] = &Server::_kick;
+	preset_cmds["DM"] = &Server::_directMessage;
+	std::vector<std::string> cmds = _split(message);
+	if (cmds.empty())
+		return;
+	std::map<std::string, CommandFunc>::iterator cmd_func = preset_cmds.find(cmds[0]);
+    if (cmd_func != preset_cmds.end()) {
+        (this->*(cmd_func->second))(message, sender_fd);
+    } else {
+        // Handle unknown command
+		Client* client = *std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
+		std::cout << "CLient in channel" << client->getInChannel() << "\n";
+		if (client->getInChannel()) {
+			_client_channel[client]->debugPrint();
+			_client_channel[client]->broadcastMessage(*client, message);
+		}
+		else
+			sendResponse("Unknown command or not connected to a channel\n", sender_fd);
+		return;
+    }
+}
+
 void Server::_handleData(int sender_fd) {
 	char buf[1024];
 	int nbytes;
@@ -166,6 +168,58 @@ void Server::_handleData(int sender_fd) {
 		if (errno != EAGAIN && errno != EWOULDBLOCK) {
 			_removeClient(sender_fd);
 		}
+	}
+}
+
+void	Server::_invite(std::string& message, int sender_fd) {
+	std::vector<std::string> splitted_cmd = _split(message);
+	Client* client = *std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
+	Client* client_to_invite = *std::find_if(_clients.begin(), _clients.end(), CompareClientNick(splitted_cmd[1]));
+	if (splitted_cmd.size() != 2) {
+		sendResponse("Wrong number of parameters\n", sender_fd);
+		return;
+	}
+	std::vector<Client*>::iterator it = std::find_if(_clients.begin(), _clients.end(), CompareClientNick(splitted_cmd[1]));
+
+	//Check that user is allowed to invite
+	//Check that user to invite is present and is authorized
+	if (!_checkAuth(*client, 0))
+		return;
+	if (!validateUserCreds(*client, sender_fd))
+		return;
+	if (_client_channel.find(client) == _client_channel.end()) {
+		sendResponse("You are not connected to any channel\n", sender_fd);
+		return;
+	}
+	if (_client_channel[client]->getInviteOnly() && !_client_channel[client]->isOperator(*client)) {
+		sendResponse("You are not allowed to do that\n", sender_fd);
+		return;
+	}
+
+	if (client == client_to_invite) {
+		sendResponse("Wrong client nickname\n", sender_fd);
+		return;
+	}
+	if (it == _clients.end()) {
+		sendResponse("Client not found\n", sender_fd);
+		return;
+	}
+	if (!_checkAuth(*client_to_invite, 1))
+		return;
+	if (!validateUserCreds(*client_to_invite, sender_fd))
+		return;
+	if (it != _clients.end() && client_to_invite->getInChannel()) {
+		_client_channel[client_to_invite]->removeClientFromChannel(*client_to_invite);
+		sendResponse("You left the old channel\n", client_to_invite->getFd());
+	}
+	if (!_client_channel[client]->addClientToChannel(*client_to_invite, client_to_invite->getFd(), 1))
+		return;
+	_client_channel[client_to_invite] = _client_channel[client];
+	sendResponse("You have been invited to the channel\n", client_to_invite->getFd());
+
+
+	for (std::vector<Client*>::iterator it = _clients.begin(); it != _clients.end(); ++it) {
+		std::cout << (*it)->getNickname() << std::endl;
 	}
 }
 
@@ -218,26 +272,47 @@ void	Server::_pass(std::string& message, int sender_fd) {
 			sendResponse("Already authenticated\n", client->getFd());
 }
 
-bool	Server::_validateUser(std::string& name, int flag, int fd) const { // flag 0 == username, flag 1 == nickname
+bool	Server::_validateName(std::string& name, int fd, std::string target, int flag) const {
+	// flag 0 == username/nickname, flag 1 == channel name, flag 2 == channel pass
+
 	std::string forbidden = "!@#$%^&*()?/\\{}[]-<>,'\"|+;:";
+	std::string msg = "";
 	if (std::find_if(name.begin(), name.end(), ::isspace) != name.end()) {
-		(flag == 0) ? sendResponse("Nickname cannot contain whitespaces\n", fd) : sendResponse("Username cannot contain whitespaces\n", fd);
+		msg = target + " cannot contain whitespaces\n";
+		sendResponse(msg, fd);
 		return false;
 	}
-	if (name.size() < 5) {
-		(flag == 0) ? sendResponse("Nickname is too short\n", fd) : sendResponse("Username is too short\n", fd);
+	if (name.size() < 4) {
+		msg = target + " is too short\n";
+		sendResponse(msg, fd);
 		return false;
 	}
-	if (name.size() > 12) {
-		(flag == 0) ? sendResponse("Nickname is too long\n", fd) : sendResponse("Username is too long\n", fd);
+	if (flag == 0 && name.size() > 12) {
+		msg = target + " is too long\n";
+		sendResponse(msg, fd);
+		return false;
+	} else if (flag == 1 && name.size() > 20){
+		msg = target + " is too long\n";
+		sendResponse(msg, fd);
 		return false;
 	}
-	size_t pos = name.find_first_of(forbidden);
-	if (pos != std::string::npos) {
-		(flag == 0) ? sendResponse("Nickname contains forbidden symbols\n", fd) : sendResponse("Username contains forbidden symbols\n", fd);
-		return false;
+	if (flag != 2) {
+		size_t pos = name.find_first_of(forbidden);
+		if (pos != std::string::npos) {
+			msg = target + " contains forbidden symbols\n";
+			sendResponse(msg, fd);
+			return false;
+		}
 	}
 
+	return true;
+}
+
+bool Server::_validateChannelPass(std::string &msg, Channel *channel, int fd) {
+	if (msg != channel->getKey()) {
+		sendResponse("Wrong channel password\n", fd);
+		return false;
+	}
 	return true;
 }
 
@@ -262,7 +337,7 @@ void	Server::_user(std::string& message, int sender_fd) {
 			sendResponse("Username cannot be changed\n", client->getFd());
 		}
 		else {
-			if (_validateUser(message, 0, client->getFd())) {
+			if (_validateName(message, client->getFd(), "Username", 0)) {
 				client->setUsername(message);
 				sendResponse("Username is succesfully set up\n", client->getFd());
 			}
@@ -274,7 +349,7 @@ void Server::_directMessage(std::string& message, int sender_fd) {
 	std::vector<Client*>::iterator sender_it = std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
 	std::vector<std::string> splitted_cmd = _split(message);
 
-	if (!_checkAuth(**sender_it))
+	if (!_checkAuth(**sender_it, 0))
 		return;
 	if (!validateUserCreds(**sender_it, sender_fd))
 		return;
@@ -329,7 +404,7 @@ void	Server::_nick(std::string& message, int sender_fd) {
 			sendResponse("Nickname cannot be the same\n", client->getFd());
 		}
 		else {
-			if (_validateUser(message, 1, client->getFd())) {
+			if (_validateName(message, client->getFd(), "Nickname", 0)) {
 				client->setNickname(message);
 				sendResponse("Nickname is succesfully set up\n", client->getFd());
 			}
@@ -342,7 +417,7 @@ void	Server::_join(std::string& msg, int sender_fd) { // TODO: parsing error han
 	std::vector<std::string> splitted_cmd = _split(msg);
 	Client* client = *std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
 
-	if (!_checkAuth(*client))
+	if (!_checkAuth(*client, 0))
 		return;
 	if (!validateUserCreds(*client, sender_fd))
 		return;
@@ -350,20 +425,26 @@ void	Server::_join(std::string& msg, int sender_fd) { // TODO: parsing error han
 	std::vector<Channel*>::iterator it = std::find_if(_channels.begin(), _channels.end(), CompareChannelName(splitted_cmd[1]));
 
 	std::string password = "";
-    if (splitted_cmd.size() > 2) { // TODO and TODO naming rules for channels
+    if (splitted_cmd.size() == 3) { // TODO and TODO naming rules for channels
         password = splitted_cmd[2];
     } else if (splitted_cmd.size() > 3) {
-		sendResponse("Wrong number of parameters", sender_fd);
+		sendResponse("Wrong number of parameters\n", sender_fd);
 		return;
 	}
 
 	if (it == _channels.end()) {
+		if (!_validateName(splitted_cmd[1], client->getFd(), "Channel name", 1))
+			return;
+		if (splitted_cmd.size() == 3 && !_validateName(splitted_cmd[2], client->getFd(), "Channel password", 2))
+			return;
 		// If client already in channel leave the channel
 		if (client->getInChannel()) {
 			_client_channel[client]->removeClientFromChannel(*client);
 			sendResponse("You left the old channel\n", sender_fd);
 		}
 		Channel *new_channel = new Channel(splitted_cmd[1], *client);
+		if (splitted_cmd.size() == 3)
+			new_channel->setKey(splitted_cmd[2]);
 		// std::cout << "Address of original channel: " << new_channel << "\n";
 		sendResponse("No channels found, new channel has been created\n", sender_fd);
 		_channels.push_back(new_channel);
@@ -371,11 +452,16 @@ void	Server::_join(std::string& msg, int sender_fd) { // TODO: parsing error han
 		if (_client_channel[client]->isOperator(*client))
 			sendResponse("You are the operator here\n", sender_fd);
 	} else {
+		if ((*it)->getHasKey()) {
+			if (!_validateChannelPass(splitted_cmd[2], *it, sender_fd))
+				return;
+		}
 		if (client->getInChannel()) {
 			_client_channel[client]->removeClientFromChannel(*client);
 			sendResponse("You left the old channel\n", sender_fd);
 		}
-		(*it)->addClientToChannel(*client, splitted_cmd[1], sender_fd, 0);
+		if (!(*it)->addClientToChannel(*client, sender_fd, 0))
+			return;
 		_client_channel[client] = *it;
 		if (_client_channel[client]->isOperator(*client))
 			sendResponse("You are the operator here\n", sender_fd);
@@ -386,11 +472,11 @@ void	Server::_kick(std::string& message, int sender_fd) {
 	std::vector<std::string> splitted_cmd = _split(message);
 	Client* client = *std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
 
-	if (!_checkAuth(*client))
+	if (!_checkAuth(*client, 0))
 		return;
 	if (!validateUserCreds(*client, sender_fd))
 		return;
-	if (splitted_cmd.size() < 2 || splitted_cmd.size() > 2) {
+	if (splitted_cmd.size()!= 2) {
 		sendResponse("Wrong number of parameters\n", sender_fd);
 		return;
 	}
@@ -424,9 +510,12 @@ void	Server::_kick(std::string& message, int sender_fd) {
 	}
 }
 
-bool	Server::_checkAuth(Client& client) {
+bool	Server::_checkAuth(Client& client, int flag) { // flag 0 = client, flag 1 = different client 
 	if (!client.getAuth()) {
-		sendResponse("You are not authorized to do that. Enter the password by typing <PASS> <password>\n", client.getFd());
+		if (flag == 0)
+			sendResponse("You are not authorized to do that. Enter the password by typing <PASS> <password>\n", client.getFd());
+		else
+			sendResponse("Client is not authorized\n", client.getFd());
 		return false;
 	}
 	return true;
