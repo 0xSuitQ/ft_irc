@@ -2,7 +2,7 @@
 
 Channel::Channel() {
 	modes.invite_only = false;
-	modes.topic_restricted = false;
+	modes.has_topic = false;
 	modes.has_key = false;
 	modes.operator_privilege = false;
 	modes.has_clients_limit = false;
@@ -12,7 +12,7 @@ Channel::Channel() {
 
 Channel::Channel(const std::string name, Client& client) {
 	modes.invite_only = false;
-	modes.topic_restricted = false;
+	modes.has_topic = false;
 	modes.has_key = false;
 	modes.operator_privilege = false;
 	modes.has_clients_limit = false;
@@ -121,10 +121,6 @@ void Channel::setInviteOnly(bool value) {
     modes.invite_only = value;
 }
 
-void Channel::setTopicRestricted(bool value) {
-    modes.topic_restricted = value;
-}
-
 void Channel::setKey(const std::string& value) {
     _key = value;
     modes.has_key = !value.empty();
@@ -138,8 +134,21 @@ bool Channel::getHasKey() const{
 	return modes.has_key;
 }
 
+bool Channel::getHasTopic() const {
+	return modes.has_topic;
+}
+
 bool Channel::getInviteOnly() const {
 	return modes.invite_only;
+}
+
+std::string Channel::getTopic() const {
+	return _topic;
+}
+
+void Channel::setTopic(std::string &value) {
+	_topic = value;
+	modes.has_topic = true;
 }
 
 void Channel::setOperatorPrivilege(bool value) {

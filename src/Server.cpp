@@ -114,6 +114,7 @@ void Server::_parse_cmd(std::string& message, int sender_fd) {
 	preset_cmds["JOIN"] = &Server::_join;
 	preset_cmds["INVITE"] = &Server::_invite;
 	preset_cmds["KICK"] = &Server::_kick;
+	preset_cmds["TOPIC"] = &Server::_topic;
 	preset_cmds["DM"] = &Server::_directMessage;
 	std::vector<std::string> cmds = _split(message);
 	if (cmds.empty())
@@ -183,7 +184,7 @@ void	Server::_invite(std::string& message, int sender_fd) {
 
 	//Check that user is allowed to invite
 	//Check that user to invite is present and is authorized
-	if (!_checkAuth(*client, 0))
+	if (!_checkAuth(*client, sender_fd, 0))
 		return;
 	if (!validateUserCreds(*client, sender_fd))
 		return;
@@ -204,7 +205,7 @@ void	Server::_invite(std::string& message, int sender_fd) {
 		sendResponse("Client not found\n", sender_fd);
 		return;
 	}
-	if (!_checkAuth(*client_to_invite, 1))
+	if (!_checkAuth(*client_to_invite, sender_fd, 1))
 		return;
 	if (!validateUserCreds(*client_to_invite, sender_fd))
 		return;
@@ -316,7 +317,7 @@ bool Server::_validateChannelPass(std::string &msg, Channel *channel, int fd) {
 	return true;
 }
 
-void	Server::_user(std::string& message, int sender_fd) {
+void	Server::_user(std::string& message, int sender_fd) { // TODO
 	message = message.substr(4);
 	Client* client = *std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
 	size_t pos = message.find_first_not_of(" \t\v\f");
@@ -349,7 +350,7 @@ void Server::_directMessage(std::string& message, int sender_fd) {
 	std::vector<Client*>::iterator sender_it = std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
 	std::vector<std::string> splitted_cmd = _split(message);
 
-	if (!_checkAuth(**sender_it, 0))
+	if (!_checkAuth(**sender_it, sender_fd, 0))
 		return;
 	if (!validateUserCreds(**sender_it, sender_fd))
 		return;
@@ -383,7 +384,7 @@ void Server::_directMessage(std::string& message, int sender_fd) {
 	(*receiver_it)->receiveMessage(direct_message);
 }
 
-void	Server::_nick(std::string& message, int sender_fd) {
+void	Server::_nick(std::string& message, int sender_fd) { //TODO
 	message = message.substr(4);
 	Client* client = *std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
 	size_t pos = message.find_first_not_of(" \t\v\f");
@@ -417,17 +418,20 @@ void	Server::_join(std::string& msg, int sender_fd) { // TODO: parsing error han
 	std::vector<std::string> splitted_cmd = _split(msg);
 	Client* client = *std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
 
-	if (!_checkAuth(*client, 0))
+	// Separate it into function
+	// *
+	if (!_checkAuth(*client, sender_fd, 0))
 		return;
 	if (!validateUserCreds(*client, sender_fd))
 		return;
+	// *
 
 	std::vector<Channel*>::iterator it = std::find_if(_channels.begin(), _channels.end(), CompareChannelName(splitted_cmd[1]));
 
 	std::string password = "";
-    if (splitted_cmd.size() == 3) { // TODO and TODO naming rules for channels
+    if (splitted_cmd.size() == 3) {
         password = splitted_cmd[2];
-    } else if (splitted_cmd.size() > 3) {
+    } else if (splitted_cmd.size() > 3 || splitted_cmd.size() < 2) {
 		sendResponse("Wrong number of parameters\n", sender_fd);
 		return;
 	}
@@ -452,10 +456,14 @@ void	Server::_join(std::string& msg, int sender_fd) { // TODO: parsing error han
 		if (_client_channel[client]->isOperator(*client))
 			sendResponse("You are the operator here\n", sender_fd);
 	} else {
+		if (client->getInChannel() && _client_channel[client]->getName() == (*it)->getName()) { // TODO: add == for Channel
+			sendResponse("Enter different channel name\n", sender_fd);
+		}
 		if ((*it)->getHasKey()) {
 			if (!_validateChannelPass(splitted_cmd[2], *it, sender_fd))
 				return;
 		}
+		// Can't put this higher since user can be removed from channel and not authenticated to enter new one
 		if (client->getInChannel()) {
 			_client_channel[client]->removeClientFromChannel(*client);
 			sendResponse("You left the old channel\n", sender_fd);
@@ -472,7 +480,7 @@ void	Server::_kick(std::string& message, int sender_fd) {
 	std::vector<std::string> splitted_cmd = _split(message);
 	Client* client = *std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
 
-	if (!_checkAuth(*client, 0))
+	if (!_checkAuth(*client, sender_fd, 0))
 		return;
 	if (!validateUserCreds(*client, sender_fd))
 		return;
@@ -480,7 +488,8 @@ void	Server::_kick(std::string& message, int sender_fd) {
 		sendResponse("Wrong number of parameters\n", sender_fd);
 		return;
 	}
-	if (_client_channel.find(client) == _client_channel.end()) {
+	if (!client->getInChannel()) {
+	//if (_client_channel.find(client) == _client_channel.end()) {
 		sendResponse("You are not connected to any channel\n", sender_fd);
 		return;
 	}
@@ -510,12 +519,51 @@ void	Server::_kick(std::string& message, int sender_fd) {
 	}
 }
 
-bool	Server::_checkAuth(Client& client, int flag) { // flag 0 = client, flag 1 = different client 
+void	Server::_topic(std::string& message, int sender_fd) {
+	std::vector<std::string> splitted_cmd = _split(message);
+	size_t pos = message.find_first_not_of(" \t\v\f");
+	message = message.substr(pos);
+	message = message.substr(5);
+	Client* client = *std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
+	std::string topic = "";
+
+	if (!client->getInChannel()) {
+		sendResponse("You are not connected to any channel\n", sender_fd);
+		return;
+	}
+	// if (splitted_cmd.size() > 2) {
+	// 	sendResponse("Wrong number of parameters\n", sender_fd);
+	// 	return;
+	// }
+	if (splitted_cmd.size() == 1) {
+		if (_client_channel[client]->getHasTopic()) {
+			topic = "Channel Topic: " + _client_channel[client]->getTopic() + "\n";
+			sendResponse(topic, sender_fd);
+		}
+		else 
+			sendResponse("No topic in the channel\n", sender_fd);
+	} else if (!_client_channel[client]->isOperator(*client)) {
+		sendResponse("You are not allowed to do that\n", sender_fd);
+	} else if (message.size() > 24) { //TODO: change size check 
+		sendResponse("Topic is too long\n", sender_fd);
+	} else {
+		// size_t pos = message.find_first_not_of(" \t\v\f"); // Example:     TOPIC topic_itself
+		// message = message.substr(pos);
+		// message = message.substr(5);
+		pos = message.find_first_not_of(" \t\v\f");
+		message = message.substr(pos);
+		std::cout << message << std::endl;
+		_client_channel[client]->setTopic(message);
+		sendResponse("Topic is successfully set up\n", sender_fd);
+	}
+}	
+
+bool	Server::_checkAuth(Client& client, int fd, int flag) { // flag 0 = client, flag 1 = different client 
 	if (!client.getAuth()) {
 		if (flag == 0)
-			sendResponse("You are not authorized to do that. Enter the password by typing <PASS> <password>\n", client.getFd());
+			sendResponse("You are not authorized to do that. Enter the password by typing <PASS> <password>\n", fd);
 		else
-			sendResponse("Client is not authorized\n", client.getFd());
+			sendResponse("Client is not authorized\n", fd);
 		return false;
 	}
 	return true;
