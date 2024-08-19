@@ -91,7 +91,7 @@ private:
 	void	_removeClient(int fd);
 	void	_parse_cmd(std::string& message, int sender_fd);
 	bool	_validateName(std::string& namem, int fd, std::string target, int flag) const;
-	bool	_checkAuth(Client& client, int flag);
+	bool	_checkAuth(Client& client, int fd, int flag);
 	bool	_validateChannelPass(std::string &msg, Channel *channel, int fd);
 
 	void	_pass(std::string& message, int sender_fd);
@@ -100,6 +100,8 @@ private:
 	void	_join(std::string& message, int sender_fd);
 	void	_invite(std::string& message, int sender_fd);
 	void	_kick(std::string& message, int sender_fd);
+	void	_topic(std::string& message, int sender_fd);
+	void	_mode(std::string& message, int sender_fd);
 	void	_directMessage(std::string& message, int sender_fd);
 
 	std::vector<std::string>	_split(std::string& str);
