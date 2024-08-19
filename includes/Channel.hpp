@@ -15,8 +15,10 @@ public:
 	void	setInviteOnly(bool value);
 	void	setTopicRestricted(bool value);
 	void	setKey(const std::string& value);
+	void	setHasKey(bool value);
 	void	setTopic(std::string &value);
 	void	setOperatorPrivilege(bool value);
+	void	setTopicPrivelege(bool value);
 	void	setUserLimit(int value);
 	bool	addClientToChannel(Client& client, int fd, bool invited);
 	void	removeOperator(Client& remover, Client& target, int fd);
@@ -31,6 +33,7 @@ public:
 	bool				getHasKey() const;
 	bool				getHasTopic() const;
 	bool				getInviteOnly() const;
+	bool				getTopicPrivelege() const;
 	std::vector<Client>	&getClients();
 
 	void debugPrint() const ;
@@ -48,6 +51,7 @@ private:
 		bool	invite_only;
 		bool	has_key;
 		bool	has_topic;
+		bool	topic_privelege;
 		bool	operator_privilege;
 		bool	has_clients_limit;
 	} modes;

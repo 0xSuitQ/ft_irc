@@ -101,6 +101,7 @@ private:
 	void	_invite(std::string& message, int sender_fd);
 	void	_kick(std::string& message, int sender_fd);
 	void	_topic(std::string& message, int sender_fd);
+	void	_mode(std::string& message, int sender_fd);
 	void	_directMessage(std::string& message, int sender_fd);
 
 	std::vector<std::string>	_split(std::string& str);
