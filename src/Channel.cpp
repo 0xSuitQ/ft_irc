@@ -75,6 +75,7 @@ void Channel::removeClientFromChannel(Client& client) {
 	// 	_operators.erase(std::remove(_operators.begin(), _operators.end(), client), _operators.end());
 	// }
 	_clients.erase(std::remove(_clients.begin(), _clients.end(), client), _clients.end());
+	_clients_count--;
 	client.setInChannel(false);
 }
 

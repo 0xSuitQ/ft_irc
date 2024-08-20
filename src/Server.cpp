@@ -1,7 +1,8 @@
 #include "Server.hpp"
 #include "Channel.hpp"
 
-// TODO: CLeaning client after disconecting
+// TODO: Cleaning client after disconecting
+// TODO: Add HELP command to list all commands
 
 Server::Server(char **av) {
 	this->_server_socket = -1;
@@ -216,7 +217,7 @@ void	Server::_invite(std::string& message, int sender_fd) {
 	}
 	if (!_client_channel[client]->addClientToChannel(*client_to_invite, client_to_invite->getFd(), 1))
 		return;
-	_client_channel[client_to_invite] = _client_channel[client];
+	_client_channel[client_to_invite] = _client_channel[client]; // TODO: client doesn't see if person to invite is connected or no.
 	sendResponse("You have been invited to the channel\n", client_to_invite->getFd());
 	sendResponse("Client has been invited to the channel\n", sender_fd);
 }
@@ -587,7 +588,7 @@ void	Server::_mode(std::string& message, int sender_fd) {
         char operation = mode[0];
         char mode_key = mode[1];
 
-		if (operation != '+' && operation != '-' && mode.size() != 2) { //TODO: handle input like MODE +iiiii | DONE
+		if ((operation != '+' && operation != '-') || mode.size() != 2) {
 			sendResponse("Invalid mode operation. Use '+' to set and '-' to remove.\n", sender_fd);
 			return;
 		}
@@ -690,7 +691,19 @@ void	Server::_mode(std::string& message, int sender_fd) {
         }
     } else {
         // Show the current mode
-		
+		response = 
+		"Invalid input.\nUsage:\n"
+		"MODE +i: Set the channel to invite-only.\n"
+		"\tMODE -i: Remove the invite-only restriction from the channel.\n"
+		"\tMODE +t: Restrict the TOPIC command to channel operators.\n"
+		"\tMODE -t: Remove the restriction of the TOPIC command to channel operators.\n"
+		"\tMODE +k <password>: Set the channel key (password).\n"
+		"\tMODE -k: Remove the channel key (password).\n"
+		"\tMODE +o <nickname>: Give channel operator privilege to a user.\n"
+		"\tMODE -o <nickname>: Take channel operator privilege from a user.\n"
+		"\tMODE +l <limit>: Set the user limit to the channel.\n"
+		"\tMODE -l: Remove the user limit from the channel.\n";
+		sendResponse(response, sender_fd);
     }
 }
 
