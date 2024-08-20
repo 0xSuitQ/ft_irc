@@ -19,7 +19,7 @@ public:
 	void	setTopic(std::string &value);
 	void	setOperatorPrivilege(bool value);
 	void	setTopicPrivelege(bool value);
-	void	setUserLimit(int value);
+	void	setClientLimit(int value);
 	bool	addClientToChannel(Client& client, int fd, bool invited);
 	void	removeOperator(Client& remover, Client& target, int fd);
 	void	setOperator(Client& giver, Client& receiver, int fd);
@@ -34,6 +34,8 @@ public:
 	bool				getHasTopic() const;
 	bool				getInviteOnly() const;
 	bool				getTopicPrivelege() const;
+	bool				getHasClientsLimit() const;
+	int					getClientsLimit();
 	std::vector<Client>	&getClients();
 
 	void debugPrint() const ;

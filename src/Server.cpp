@@ -587,7 +587,7 @@ void	Server::_mode(std::string& message, int sender_fd) {
         char operation = mode[0];
         char mode_key = mode[1];
 
-		if (operation != '+' && operation != '-') {
+		if (operation != '+' && operation != '-' && mode.size() != 2) { //TODO: handle input like MODE +iiiii | DONE
 			sendResponse("Invalid mode operation. Use '+' to set and '-' to remove.\n", sender_fd);
 			return;
 		}
@@ -622,22 +622,94 @@ void	Server::_mode(std::string& message, int sender_fd) {
 				_client_channel[client]->setKey(password);
 				sendResponse("Successfully set the channel key.\n", sender_fd);
 			} else if (operation == '-') {
-				_client_channel[client]->setHasKey(false);
-				sendResponse("Successfully removed the channel key.\n", sender_fd);
+				if (!_client_channel[client]->getHasKey())
+					sendResponse("No password to be removed.\n", sender_fd);
+				else {
+					_client_channel[client]->setHasKey(false);
+					sendResponse("Successfully removed the channel key.\n", sender_fd);
+				}
 			}
         } else if (mode_key == 'o') {
             // Give/take channel operator privilege
-			// TODO: 1. Find out if receiver is on the server
+			//		 1. Find out if receiver is on the server
 			//		 2. If receiver is not client themselves
 			//		 3. If receiver does not already have it or vice versa if removing
+			if (splitted_cmd.size() != 3)
+				sendResponse("Invalid amount of arguments for this mode. Use \"MODE +o <nickname>\" or \"MODE -o <nickname>\".\n", sender_fd);
+			else {
+				Client* receiver = *std::find_if(_clients.begin(), _clients.end(), CompareClientNick(splitted_cmd[2]));
+				if (!receiver->getInChannel() || _client_channel[receiver] != _client_channel[client])
+					sendResponse("User is not present in the channel.\n", sender_fd);
+				else if (receiver == client)
+					sendResponse("Incorrect client.\n", sender_fd);
+				else if (operation == '-') {
+					if (!_client_channel[receiver]->isOperator(*receiver))
+						sendResponse("Unable to remove operator privelege. Client has no operator privelege.\n", sender_fd);
+					else {
+						_client_channel[receiver]->removeOperator(*client, *receiver, sender_fd);
+					}
+				} else if (operation == '+') {
+					if (_client_channel[receiver]->isOperator(*receiver))
+						sendResponse("Unable to grant operator privelege. Client already has operator privelege.\n", sender_fd);
+					else {
+						_client_channel[receiver]->setOperator(*client, *receiver, sender_fd);
+					}
+				}
+			}
+			
         } else if (mode_key == 'l') {
-            // Set/remove the user limit to channel
+            // Set/remove the client limit to channel
+			if (splitted_cmd.size() < 2 || splitted_cmd.size() > 3)
+				sendResponse("Invalid amount of arguments for this mode. Use \"MODE +l <limit>\" or \"MODE -l\".\n", sender_fd);
+			else if (operation == '-' && splitted_cmd.size() != 2)
+				sendResponse("Invalid arguments for this mode. Use \"MODE +l <limit>\" or \"MODE -l\".\n", sender_fd);
+			else if (operation == '-') {
+				if (!_client_channel[client]->getHasClientsLimit())
+					sendResponse("Unable to remove client limit. Client limit is already removed.\n", sender_fd);
+				else {
+					_client_channel[client]->setClientLimit(0);
+					sendResponse("Successfully removed client limit.\n", sender_fd);
+				}
+			} else if (operation == '+') {
+				if (splitted_cmd.size() != 3) {
+					sendResponse("Invalid amount of arguments for this mode. Use \"MODE +l <limit>\" or \"MODE -l\".\n", sender_fd);
+					return;
+				}
+				int clientsLimit;
+				if (!_validateLimit(splitted_cmd[2], clientsLimit, sender_fd))
+					return;
+				if (_client_channel[client]->getHasClientsLimit() && _client_channel[client]->getClientsLimit() == clientsLimit)
+					sendResponse("Unable to set clients limit. Use different value from what channel clients limit already has.\n", sender_fd);
+				else {
+					_client_channel[client]->setClientLimit(clientsLimit);
+					sendResponse("Clients limit is successfully set up.\n", sender_fd);
+				}
+			}
         } else {
 			sendResponse("Invalid mode key. Use 'i', 't', 'k', 'o', or 'l'.\n", sender_fd);
         }
     } else {
         // Show the current mode
+		
     }
+}
+
+bool Server::_validateLimit(std::string message, int& clientsLimit, int fd) {
+	try {
+		clientsLimit = std::stoi(message);
+	} catch (std::invalid_argument& e) {
+		sendResponse("Invalid limit. Please enter a valid number.\n", fd);
+		return false;
+	} catch (std::out_of_range& e) {
+		sendResponse("Limit is out of range. Please enter a smaller number.\n", fd);
+		return false;
+	}
+
+	if (clientsLimit < 1 || clientsLimit > 500) {
+		sendResponse("Limit is out of range. Please enter a smaller number.\n", fd);
+		return false;
+	} else
+		return true;
 }
 
 bool	Server::_checkAuth(Client& client, int fd, int flag) { // flag 0 = client, flag 1 = different client 

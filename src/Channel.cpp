@@ -57,7 +57,8 @@ bool Channel::addClientToChannel(Client& client, int fd, bool invited) {
 	// 	sendResponse("Wrong password to the channel\n", fd);
 	// 	return false;
 	// }
-	if (modes.has_clients_limit && _clients_count >= _clients_limit) {
+	// if (modes.has_clients_limit && _clients_count >= _clients_limit) {
+	if (this->getHasClientsLimit() && _clients_count >= getClientsLimit()) {
 		sendResponse("Could not connect to the channel. Too many clients in the channel\n", fd);
 		return false;
 	} else {
@@ -84,7 +85,8 @@ void Channel::setOperator(Client& giver, Client& receiver, int fd) {
 		for (std::vector<Client>::iterator it = _clients.begin(); it != _clients.end(); ++it) {
 			if (*it == receiver) {
 				_operators.push_back(receiver);
-				sendResponse("You successfully granted operator role\n", fd);
+				sendResponse("You successfully granted operator role.\n", fd);
+				sendResponse("You received operator role on this channel.\n", receiver.getFd());
 				return;
 			} else {
 				sendResponse("Client is not a channel member\n", fd);
@@ -169,9 +171,17 @@ void Channel::setOperatorPrivilege(bool value) {
     modes.operator_privilege = value;
 }
 
-void Channel::setUserLimit(int value) {
-    _clients_limit = value;
-    modes.has_clients_limit = (value > 0);
+void Channel::setClientLimit(int value) {
+	_clients_limit = value;
+	modes.has_clients_limit = (value > 0);
+}
+
+int Channel::getClientsLimit() {
+	return _clients_limit;
+}
+
+bool Channel::getHasClientsLimit() const{
+	return modes.has_clients_limit;
 }
 
 bool validateUserCreds(Client& client, int fd) {
