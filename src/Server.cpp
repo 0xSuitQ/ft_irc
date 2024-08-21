@@ -215,8 +215,10 @@ void	Server::_invite(std::string& message, int sender_fd) {
 		_client_channel[client_to_invite]->removeClientFromChannel(*client_to_invite);
 		sendResponse("You left the old channel\n", client_to_invite->getFd());
 	}
-	if (!_client_channel[client]->addClientToChannel(*client_to_invite, client_to_invite->getFd(), 1))
+	if (!_client_channel[client]->addClientToChannel(*client_to_invite, client_to_invite->getFd(), 1)) {
+		sendResponse("Unable to connect client to the channel.\n", sender_fd);
 		return;
+	}
 	_client_channel[client_to_invite] = _client_channel[client]; // TODO: client doesn't see if person to invite is connected or no.
 	sendResponse("You have been invited to the channel\n", client_to_invite->getFd());
 	sendResponse("Client has been invited to the channel\n", sender_fd);
@@ -224,7 +226,7 @@ void	Server::_invite(std::string& message, int sender_fd) {
 
 void Server::sendPrivateMessage(Client& sender, Client& receiver, const std::string& message) {
 	if (sender != receiver) {
-		receiver.receiveMessage(sender.getNickname()); //TODO: time and name of sender
+		receiver.receiveMessage(sender.getNickname());
 		receiver.receiveMessage(message);
 	}
 }
@@ -251,24 +253,29 @@ std::vector<std::string> Server::_split(std::string& str) {
 }
 
 void	Server::_pass(std::string& message, int sender_fd) {
-	message = message.substr(4);
+	// message = message.substr(4);
+	std::vector<std::string> splitted_cmd = _split(message);
 	Client* client = *std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
-	size_t pos = message.find_first_not_of(" \t\v\f");
-    if (pos != std::string::npos) {
-        message = message.substr(pos);
-    } else {
-        message = "";
-    }
+	// size_t pos = message.find_first_not_of(" \t\v\f");
+    // if (pos != std::string::npos) {
+    //     message = message.substr(pos);
+    // } else {
+    //     message = "";
+    // }
+
+	if (splitted_cmd.size() != 2) {
+		sendResponse("Invalid amount of arguments. Use \"PASS <password>\".\n", sender_fd);
+	}
 
 	if (!client->getAuth()) {
-		if (message == _server_pass) {
+		if (splitted_cmd[1] == _server_pass) {
 			client->setAuth(true);
 			sendResponse("Succesfully authenticated\n", client->getFd());
 		}
 		else
-			sendResponse("Incorrect password\n", client->getFd());
+			sendResponse("Incorrect password.\n", client->getFd());
 	} else
-			sendResponse("Already authenticated\n", client->getFd());
+			sendResponse("Already authenticated.\n", client->getFd());
 }
 
 bool	Server::_validateName(std::string& name, int fd, std::string target, int flag) const {
@@ -316,18 +323,24 @@ bool Server::_validateChannelPass(std::string &msg, Channel *channel, int fd) {
 }
 
 void	Server::_user(std::string& message, int sender_fd) { // TODO
-	message = message.substr(4);
+	std::vector<std::string> splitted_cmd = _split(message);
 	Client* client = *std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
-	size_t pos = message.find_first_not_of(" \t\v\f");
-	if (pos != std::string::npos) {
-		message = message.substr(pos);
-	} else {
-		message = "";
-		sendResponse("Username cannot be empty\n", client->getFd());
+	// size_t pos = message.find_first_not_of(" \t\v\f");
+	// if (pos != std::string::npos) {
+	// 	message = message.substr(pos);
+	// } else {
+	// 	message = "";
+	// 	sendResponse("Username cannot be empty\n", client->getFd());
+	// 	return;
+	// }
+
+	if (splitted_cmd.size() != 2) {
+		sendResponse("Invalid amount of arguments. Use \"USER <username>\".\n", client->getFd());
 		return;
 	}
+	
 
-	std::vector<Client*>::iterator it = std::find_if(_clients.begin(), _clients.end(), CompareClientUser(message));
+	std::vector<Client*>::iterator it = std::find_if(_clients.begin(), _clients.end(), CompareClientUser(splitted_cmd[1]));
 	if (it != _clients.end() && (*it)->getFd() != sender_fd) {
 		sendResponse("Username is already taken\n", client->getFd());
 	} else {
@@ -336,8 +349,8 @@ void	Server::_user(std::string& message, int sender_fd) { // TODO
 			sendResponse("Username cannot be changed\n", client->getFd());
 		}
 		else {
-			if (_validateName(message, client->getFd(), "Username", 0)) {
-				client->setUsername(message);
+			if (_validateName(splitted_cmd[1], client->getFd(), "Username", 0)) {
+				client->setUsername(splitted_cmd[1]);
 				sendResponse("Username is succesfully set up\n", client->getFd());
 			}
 		}
@@ -383,28 +396,34 @@ void Server::_directMessage(std::string& message, int sender_fd) {
 }
 
 void	Server::_nick(std::string& message, int sender_fd) { //TODO
-	message = message.substr(4);
+	std::vector<std::string> splitted_cmd = _split(message);
+	// message = message.substr(4);
 	Client* client = *std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
-	size_t pos = message.find_first_not_of(" \t\v\f");
-	if (pos != std::string::npos) {
-		message = message.substr(pos);
-	} else {
-		message = "";
-		sendResponse("Nickname cannot be empty\n", client->getFd());
+	// size_t pos = message.find_first_not_of(" \t\v\f");
+	// if (pos != std::string::npos) {
+	// 	message = message.substr(pos);
+	// } else {
+	// 	message = "";
+	// 	sendResponse("Nickname cannot be empty\n", client->getFd());
+	// 	return;
+	// }
+
+	if (splitted_cmd.size() != 2) {
+		sendResponse("Invalid amoun of arguments. Use \"NICK <nickname>\".\n", client->getFd());
 		return;
 	}
 
-	std::vector<Client*>::iterator it = std::find_if(_clients.begin(), _clients.end(), CompareClientNick(message));
+	std::vector<Client*>::iterator it = std::find_if(_clients.begin(), _clients.end(), CompareClientNick(splitted_cmd[1]));
 	if (it != _clients.end() && (*it)->getFd() != sender_fd) {
 		sendResponse("Nickname is already taken\n", client->getFd());
 	} else {
 		// Nickname is not occupied or is occupied by the same client
-		if (message == client->getNickname()){
+		if (splitted_cmd[1] == client->getNickname()){
 			sendResponse("Nickname cannot be the same\n", client->getFd());
 		}
 		else {
-			if (_validateName(message, client->getFd(), "Nickname", 0)) {
-				client->setNickname(message);
+			if (_validateName(splitted_cmd[1], client->getFd(), "Nickname", 0)) {
+				client->setNickname(splitted_cmd[1]);
 				sendResponse("Nickname is succesfully set up\n", client->getFd());
 			}
 		}
@@ -538,11 +557,11 @@ void	Server::_topic(std::string& message, int sender_fd) {
 			topic = "Channel Topic: " + _client_channel[client]->getTopic() + "\n";
 			sendResponse(topic, sender_fd);
 		}
-		else 
+		else
 			sendResponse("No topic in the channel\n", sender_fd);
 	} else if (_client_channel[client]->getTopicPrivelege() && !_client_channel[client]->isOperator(*client)) { //TODO: make variable so it looks into map only once (optional optimisation)
 		sendResponse("You are not allowed to do that\n", sender_fd);
-	} else if (message.size() > 24) { //TODO: change size check 
+	} else if (message.size() > 24) {
 		sendResponse("Topic is too long\n", sender_fd);
 	} else {
 		// size_t pos = message.find_first_not_of(" \t\v\f"); // Example:     TOPIC topic_itself

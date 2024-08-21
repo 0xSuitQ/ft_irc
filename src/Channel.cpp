@@ -4,7 +4,6 @@ Channel::Channel() {
 	modes.invite_only = false;
 	modes.has_topic = false;
 	modes.has_key = false;
-	modes.operator_privilege = false;
 	modes.has_clients_limit = false;
 	modes.topic_privelege = false;
 
@@ -16,7 +15,6 @@ Channel::Channel(const std::string name, Client& client) {
 	modes.has_topic = false;
 	modes.topic_privelege = false;
 	modes.has_key = false;
-	modes.operator_privilege = false;
 	modes.has_clients_limit = false;
 
 	setName(name);
@@ -166,10 +164,6 @@ void Channel::setTopicPrivelege(bool value) {
 
 bool Channel::getTopicPrivelege() const {
 	return modes.topic_privelege;
-}
-
-void Channel::setOperatorPrivilege(bool value) {
-    modes.operator_privilege = value;
 }
 
 void Channel::setClientLimit(int value) {
