@@ -17,7 +17,6 @@ public:
 	void	setKey(const std::string& value);
 	void	setHasKey(bool value);
 	void	setTopic(std::string &value);
-	void	setOperatorPrivilege(bool value);
 	void	setTopicPrivelege(bool value);
 	void	setClientLimit(int value);
 	bool	addClientToChannel(Client& client, int fd, bool invited);
@@ -54,7 +53,6 @@ private:
 		bool	has_key;
 		bool	has_topic;
 		bool	topic_privelege;
-		bool	operator_privilege;
 		bool	has_clients_limit;
 	} modes;
 
