@@ -67,7 +67,7 @@ void	Server::createSocket() {
 }
 
 void	Server::_handleNewConnection() {
-	char			buf[] = "Welcome\n";
+	char			buf[] = ":ircserv 001 :Welcome to the IRC Network,!\n";
 	struct pollfd	new_client;
 
 	int new_fd = accept(_server_socket, NULL, NULL);
@@ -285,7 +285,8 @@ void	Server::_pass(std::string& message, int sender_fd) {
 bool	Server::_validateName(std::string& name, int fd, std::string target, int flag) const {
 	// flag 0 == username/nickname, flag 1 == channel name, flag 2 == channel pass
 
-	std::string forbidden = "!@#$%^&*()?/\\{}[]-<>,'\"|+;:";
+	// std::string forbidden = "!@#$%^&*()?/\\{}[]-<>,'\"|+;:";
+	std::string forbidden = "!@$%^&*()?/\\{}[]-<>,'\"|+;:";
 	std::string msg = "";
 	if (std::find_if(name.begin(), name.end(), ::isspace) != name.end()) {
 		msg = target + " cannot contain whitespaces\n";
@@ -338,10 +339,10 @@ void	Server::_user(std::string& message, int sender_fd) {
 	// 	return;
 	// }
 
-	if (splitted_cmd.size() != 2) {
-		sendResponse("Invalid amount of arguments. Use \"USER <username>\".\n", client->getFd());
-		return;
-	}
+	// if (splitted_cmd.size() != 2) {
+	// 	sendResponse("Invalid amount of arguments. Use \"USER <username>\".\n", client->getFd());
+	// 	return;
+	// }
 	
 
 	std::vector<Client*>::iterator it = std::find_if(_clients.begin(), _clients.end(), CompareClientUser(splitted_cmd[1]));
@@ -446,8 +447,8 @@ void	Server::_join(std::string& msg, int sender_fd) {
 
 	// Separate it into function
 	// *
-	if (!_checkAuth(*client, sender_fd, 0))
-		return;
+	// if (!_checkAuth(*client, sender_fd, 0))
+	// 	return;
 	if (!validateUserCreds(*client, sender_fd))
 		return;
 	// *
@@ -653,7 +654,7 @@ void	Server::_mode(std::string& message, int sender_fd) {
 				sendResponse("Invalid arguments for this mode. Use \"MODE +k <password>\" or \"MODE -k\".\n", sender_fd);
 			else if (operation == '+') {
 				password = splitted_cmd[2];
-				if (!_validateName(password, client->getFd(), "Channel password", 2))
+				if (!_validateName(password, sender_fd, "Channel password", 2))
 					return;
 				_client_channel[client]->setKey(password);
 				sendResponse("Successfully set the channel key.\n", sender_fd);

@@ -10,6 +10,7 @@
 # include <fcntl.h>
 # include <sstream>
 # include <map>
+# include <cerrno>
 # include "Client.hpp"
 # include "Channel.hpp"
 # include "Utils.hpp"

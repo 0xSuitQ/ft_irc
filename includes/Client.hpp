@@ -5,6 +5,7 @@
 # include <sys/socket.h>
 # include <netinet/in.h>
 # include <iostream>
+# include <cstdio>
 # include <unistd.h>
 
 class Client {

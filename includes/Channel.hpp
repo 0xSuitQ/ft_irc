@@ -2,6 +2,7 @@
 # define CHANNEL_HPP
 
 # include <vector>
+# include <algorithm>
 # include "Client.hpp"
 # include "Utils.hpp"
 

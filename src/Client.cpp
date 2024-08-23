@@ -45,6 +45,7 @@ bool Client::getCompleteMessage(std::string& message) {
 void Client::receiveMessage(const std::string& message) {
     if (send(getFd(), message.c_str(), message.size(), 0) == -1)
 		perror("Error: send()");
+		
 }
 
 bool Client::getAuth() const { return _authenticated; }
