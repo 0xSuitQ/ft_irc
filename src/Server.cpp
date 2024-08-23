@@ -3,6 +3,7 @@
 
 // TODO: Cleaning client after disconecting
 // TODO: Add HELP command to list all commands
+// TODO: Orthodox canonical form of the classes
 
 Server::Server(char **av) {
 	this->_server_socket = -1;
@@ -115,9 +116,11 @@ void Server::_parse_cmd(std::string& message, int sender_fd) {
 	preset_cmds["JOIN"] = &Server::_join;
 	preset_cmds["INVITE"] = &Server::_invite;
 	preset_cmds["KICK"] = &Server::_kick;
+	// preset_cmds["LEAVE"] = &Server::_leave;
 	preset_cmds["TOPIC"] = &Server::_topic;
 	preset_cmds["MODE"] = &Server::_mode;
 	preset_cmds["DM"] = &Server::_directMessage;
+	preset_cmds["CAP"] = &Server::_capLs;
 	std::vector<std::string> cmds = _split(message);
 	if (cmds.empty())
 		return;
@@ -232,6 +235,7 @@ void Server::sendPrivateMessage(Client& sender, Client& receiver, const std::str
 }
 
 void Server::_removeClient(int fd) {
+	// 
 	// Remove from _clients vector
 	_clients.erase(std::remove_if(_clients.begin(), _clients.end(), CompareClientFd(fd)), _clients.end());
 
@@ -322,7 +326,7 @@ bool Server::_validateChannelPass(std::string &msg, Channel *channel, int fd) {
 	return true;
 }
 
-void	Server::_user(std::string& message, int sender_fd) { // TODO
+void	Server::_user(std::string& message, int sender_fd) {
 	std::vector<std::string> splitted_cmd = _split(message);
 	Client* client = *std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
 	// size_t pos = message.find_first_not_of(" \t\v\f");
@@ -395,7 +399,7 @@ void Server::_directMessage(std::string& message, int sender_fd) {
 	(*receiver_it)->receiveMessage(direct_message);
 }
 
-void	Server::_nick(std::string& message, int sender_fd) { //TODO
+void	Server::_nick(std::string& message, int sender_fd) {
 	std::vector<std::string> splitted_cmd = _split(message);
 	// message = message.substr(4);
 	Client* client = *std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
@@ -431,9 +435,14 @@ void	Server::_nick(std::string& message, int sender_fd) { //TODO
 }
 
 // Usage: JOIN <channel name> <password (optional)>
-void	Server::_join(std::string& msg, int sender_fd) { // TODO: parsing error handling
+void	Server::_join(std::string& msg, int sender_fd) {
 	std::vector<std::string> splitted_cmd = _split(msg);
 	Client* client = *std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
+
+	// if (msg == "JOIN :") {
+    // 	sendResponse("ERROR :No channel name given", sender_fd);
+	// 	return;
+	// }
 
 	// Separate it into function
 	// *
@@ -534,6 +543,13 @@ void	Server::_kick(std::string& message, int sender_fd) {
 		}
 		sendResponse("Successfuly kicked the client\n", sender_fd);
 	}
+}
+
+void	Server::_capLs(std::string& message, int sender_fd) {
+	std::vector<std::string> splitted_cmd = _split(message);
+	// Client* client = *std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
+
+	sendResponse("CAP LS:", sender_fd);
 }
 
 void	Server::_topic(std::string& message, int sender_fd) {
