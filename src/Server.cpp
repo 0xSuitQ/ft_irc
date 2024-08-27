@@ -121,6 +121,7 @@ void Server::_parse_cmd(std::string& message, int sender_fd) {
 	preset_cmds["MODE"] = &Server::_mode;
 	preset_cmds["DM"] = &Server::_directMessage;
 	preset_cmds["CAP"] = &Server::_capLs;
+	preset_cmds["PING"] = &Server::_pong;
 	std::vector<std::string> cmds = _split(message);
 	if (cmds.empty())
 		return;
@@ -327,6 +328,18 @@ bool Server::_validateChannelPass(std::string &msg, Channel *channel, int fd) {
 	return true;
 }
 
+void	Server::_pong(std::string& message, int sender_fd) {
+	std::vector<std::string> splitted_cmd = _split(message);
+	Client* client = *std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
+
+	if (splitted_cmd.size() < 2){
+		sendResponse("No pong\n", client->getFd());
+	}
+	else {
+		sendResponse("PONG: " + splitted_cmd[1] + "\n", client->getFd());
+	}
+}
+
 void	Server::_user(std::string& message, int sender_fd) {
 	std::vector<std::string> splitted_cmd = _split(message);
 	Client* client = *std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
@@ -356,7 +369,7 @@ void	Server::_user(std::string& message, int sender_fd) {
 		else {
 			if (_validateName(splitted_cmd[1], client->getFd(), "Username", 0)) {
 				client->setUsername(splitted_cmd[1]);
-				sendResponse("Username is succesfully set up\n", client->getFd());
+				sendResponse("Username " + client->getUsername() + " is succesfully set up\n", client->getFd());
 			}
 		}
 	}
@@ -429,7 +442,7 @@ void	Server::_nick(std::string& message, int sender_fd) {
 		else {
 			if (_validateName(splitted_cmd[1], client->getFd(), "Nickname", 0)) {
 				client->setNickname(splitted_cmd[1]);
-				sendResponse("Nickname is succesfully set up\n", client->getFd());
+				sendResponse("Nickname " + client->getNickname() + " is succesfully set up\n", client->getFd());
 			}
 		}
 	}
@@ -654,7 +667,7 @@ void	Server::_mode(std::string& message, int sender_fd) {
 				sendResponse("Invalid arguments for this mode. Use \"MODE +k <password>\" or \"MODE -k\".\n", sender_fd);
 			else if (operation == '+') {
 				password = splitted_cmd[2];
-				if (!_validateName(password, sender_fd, "Channel password", 2))
+				if (!_validateName(password, client->getFd(), "Channel password", 2))
 					return;
 				_client_channel[client]->setKey(password);
 				sendResponse("Successfully set the channel key.\n", sender_fd);

@@ -106,6 +106,7 @@ private:
 	void	_mode(std::string& message, int sender_fd);
 	void	_capLs(std::string& message, int sender_fd);
 	void	_directMessage(std::string& message, int sender_fd);
+	void	_pong(std::string& message, int sender_fd);
 
 	std::vector<std::string>	_split(std::string& str);
 
