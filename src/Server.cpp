@@ -496,10 +496,11 @@ void	Server::_join(std::string& msg, int sender_fd) {
 	size_t i = 0;
 	while (std::getline(ss, channelName, ',')) {
 		password = (i < passwords.size()) ? passwords[i] : "";
-	
-		std::vector<Channel*>::iterator it = std::find_if(_channels.begin(), _channels.end(), CompareChannelName(channelName));
+		
 		if (channelName[0] == '#')
 			channelName = channelName.substr(1); // Since channel name can include #
+	
+		std::vector<Channel*>::iterator it = std::find_if(_channels.begin(), _channels.end(), CompareChannelName(channelName));
 
 		if (splitted_cmd.size() > 3 || splitted_cmd.size() < 2) {
 			sendResponse("Wrong number of parameters\n", sender_fd);
@@ -529,12 +530,12 @@ void	Server::_join(std::string& msg, int sender_fd) {
 				sendResponse("You are the operator here\n", sender_fd);
 		} else {
 			std::vector<Channel*> channels = _client_channel[client];
-			for (std::vector<Channel*>::iterator it_channel = channels.begin(); it_channel != channels.end(); ++it_channel) {
-				if ((*it_channel)->getName() == (*it)->getName()) {
-					sendResponse("Enter different channel name\n", sender_fd);
-					return;
-				}
-			}
+			// for (std::vector<Channel*>::iterator it_channel = channels.begin(); it_channel != channels.end(); ++it_channel) {
+			// 	if ((*it_channel)->getName() == (*it)->getName()) {
+			// 		sendResponse("Enter different channel name\n", sender_fd);
+			// 		return;
+			// 	}
+			// }     NOT NEEDED
 			if ((*it)->getHasKey()) {
 				if (!_validateChannelPass(password, *it, sender_fd, client))
 					return;
