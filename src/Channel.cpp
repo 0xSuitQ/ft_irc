@@ -52,8 +52,8 @@ void Channel::broadcast(const std::string& message) {
 }
 
 void Channel::broadcast(const std::string& message, Client* exclude) {
-std::vector<Client>::iterator it_b = _clients.begin();
-std::vector<Client>::iterator it_e = _clients.end();
+	std::vector<Client>::iterator it_b = _clients.begin();
+	std::vector<Client>::iterator it_e = _clients.end();
 
 	while (it_b != it_e)
 	{

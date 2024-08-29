@@ -9,7 +9,7 @@ Server::Server(char **av) {
 	this->_server_socket = -1;
 	this->_port = -1;
 	try {
-        setPort(std::stoi(av[1])); //parser checks
+        setPort(std::atoi(av[1])); //parser checks
     } catch (const std::invalid_argument& ia) {
         std::cerr << "Invalid argument: " << ia.what() << '\n';
         return;
@@ -463,8 +463,7 @@ void	Server::_nick(std::string& message, int sender_fd) {
 void	Server::_join(std::string& msg, int sender_fd) {
 	std::vector<std::string> splitted_cmd = _split(msg);
 	Client* client = *std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
-	std::istringstream ss(splitted_cmd[1]);
-	std::istringstream ss_passwords(splitted_cmd[2]);
+	
 	std::string channelName;
 	std::string password = "";
 	std::vector<std::string> passwords;
@@ -481,10 +480,18 @@ void	Server::_join(std::string& msg, int sender_fd) {
 	if (!validateUserCreds(*client, sender_fd))
 		return;
 	// *
+	if (splitted_cmd.size() == 3 && !splitted_cmd[2].empty()) {
+		std::istringstream ss_passwords(splitted_cmd[2]);
+		std::string temp;
+		while (std::getline(ss_passwords, temp, ','))
+			passwords.push_back(temp);
+	}
 
-	std::string temp;
-	while (std::getline(ss_passwords, temp, ','))
-		passwords.push_back(temp);
+	if (splitted_cmd.size() < 2 || splitted_cmd[1].empty()) {
+		client->reply(ERR_NEEDMOREPARAMS(client->getNickname(), "JOIN"), sender_fd);
+	}
+
+	std::istringstream ss(splitted_cmd[1]);
 
 	size_t i = 0;
 	while (std::getline(ss, channelName, ',')) {
@@ -501,16 +508,18 @@ void	Server::_join(std::string& msg, int sender_fd) {
 
 		if (it == _channels.end()) {
 			std::cout << "we are here\n";
-			if (!_validateName(channelName, client->getFd(), "Channel name", 1))
-				return;
-			if (password.size() > 0 && !_validateName(password, client->getFd(), "Channel password", 2))
-				return;
+			// if (!_validateName(channelName, client->getFd(), "Channel name", 1))
+			// 	return;
+			// if (password.size() > 0 && !_validateName(password, client->getFd(), "Channel password", 2))
+			// 	return;
+
 			// If client already in channel leave the channel | UPD: we do not need it anymore
 			// if (client->getInChannel()) {
 			// 	_client_channel[client]->removeClientFromChannel(*client);
 			// 	sendResponse("You left the old channel\n", sender_fd);
 			// }
 			Channel *new_channel = new Channel(channelName, *client);
+			std::cout << "channel is created\n";
 			if (password.size() > 0)
 				new_channel->setKey(password);
 			sendResponse("No channels found, new channel has been created\n", sender_fd);
@@ -738,6 +747,11 @@ void	Server::_mode(std::string& message, int sender_fd) {
         char operation = mode[0];
         char mode_key = mode[1];
 		std::string channel_name = splitted_cmd[1];
+
+		if (channel_name.at(0) == '#') {
+			channel_name = channel_name.substr(1);
+		}
+
 		Channel* channel = *find_if(channels.begin(), channels.end(), CompareChannelName(channel_name));
 
 		if (!channel->isOperator(*client)) {
@@ -844,6 +858,7 @@ void	Server::_mode(std::string& message, int sender_fd) {
 			}
         } else {
 			// sendResponse("Invalid mode key. Use 'i', 't', 'k', 'o', or 'l'.\n", sender_fd);
+			std::cout << "Unknown mode\n";
 			client->reply(ERR_UNKNOWNMODE(client->getNickname(), channel_name, operation), sender_fd);
         }
     // } else if (splitted_cmd.size() > 2) {
@@ -950,7 +965,7 @@ void Server::_privmsg(std::string& message, int sender_fd) {
 
 bool Server::_validateLimit(std::string message, int& clientsLimit, int fd) {
 	try {
-		clientsLimit = std::stoi(message);
+		clientsLimit = std::atoi(message.c_str());
 	} catch (std::invalid_argument& e) {
 		sendResponse("Invalid limit. Please enter a valid number.\n", fd);
 		return false;
