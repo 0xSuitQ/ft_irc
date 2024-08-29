@@ -22,6 +22,10 @@ Channel::Channel(const std::string name, Client& client) {
 	_operators.push_back(client);
 	_clients_count++;
 	client.setInChannel(true);
+
+	client.reply(RPL_NAMREPLY(client.getNickname(), this->getName(), client.getNickname() + " "), client.getFd());
+	client.reply(RPL_ENDOFNAMES(client.getNickname(), this->getName()), client.getFd());
+	this->broadcast(RPL_JOIN(client.getPrefix(), this->getName()));
 }
 
 Channel::~Channel() {}
@@ -36,6 +40,34 @@ void Channel::broadcastMessage(Client& client, const std::string& message) {
 	}
 }
 
+void Channel::broadcast(const std::string& message) {
+	std::vector<Client>::iterator it_b = _clients.begin();
+	std::vector<Client>::iterator it_e = _clients.end();
+
+	while (it_b != it_e)
+	{
+		it_b->write(message, (*it_b).getFd());
+		it_b++;
+	}
+}
+
+void Channel::broadcast(const std::string& message, Client* exclude) {
+std::vector<Client>::iterator it_b = _clients.begin();
+std::vector<Client>::iterator it_e = _clients.end();
+
+	while (it_b != it_e)
+	{
+		if (&(*it_b) == exclude)
+		{
+			it_b++;
+			continue;
+		}
+
+		it_b->write(message, (*it_b).getFd());
+		it_b++;
+	}
+}
+
 void Channel::debugPrint() const {
     std::cout << "Channel at " << this << ":\n";
     std::cout << "Clients vector address: " << &_clients << "\n";
@@ -44,6 +76,20 @@ void Channel::debugPrint() const {
 }
 
 bool Channel::addClientToChannel(Client& client, int fd, bool invited) {
+	std::string users = "";
+    std::vector<Client> clients = this->getClients();
+    std::vector<Client>::iterator it_b = clients.begin();
+    std::vector<Client>::iterator it_e = clients.end();
+    while (it_b != it_e) {
+        users.append((*it_b).getNickname() + " ");
+        it_b++;
+    }
+	
+	client.reply(RPL_NAMREPLY(client.getNickname(), this->getName(), users), fd);
+	client.reply(RPL_ENDOFNAMES(client.getNickname(), this->getName()), fd);
+	this->broadcast(RPL_JOIN(client.getPrefix(), this->getName()));
+
+
 	if (!validateUserCreds(client, fd)) {
 		return false;
 	}
@@ -57,7 +103,7 @@ bool Channel::addClientToChannel(Client& client, int fd, bool invited) {
 	// }
 	// if (modes.has_clients_limit && _clients_count >= _clients_limit) {
 	if (this->getHasClientsLimit() && _clients_count >= getClientsLimit()) {
-		sendResponse("Could not connect to the channel. Too many clients in the channel\n", fd);
+		client.reply(ERR_CHANNELISFULL(client.getNickname(), this->getName()), fd);
 		return false;
 	} else {
 		_clients.push_back(client);
@@ -96,17 +142,14 @@ void Channel::setOperator(Client& giver, Client& receiver, int fd) {
 	}
 }
 
-void Channel::removeOperator(Client& remover, Client& target, int fd) {
+void Channel::removeOperator(Client& remover, Client& target) {
 	if (isOperator(remover)) {
 		for (std::vector<Client>::iterator it = _operators.begin(); it != _operators.end(); ++it) {
 			if (*it == target) {
 				_operators.erase(it);
-				sendResponse("You successfully removed operator role\n", fd);
 				break;
 			}
 		}
-	} else {
-		sendResponse("You are not allowed to do that\n", fd);
 	}
 }
 
@@ -145,6 +188,10 @@ bool Channel::getHasTopic() const {
 	return modes.has_topic;
 }
 
+void Channel::setHasTopic(bool value) {
+	modes.has_topic = value;
+}
+
 bool Channel::getInviteOnly() const {
 	return modes.invite_only;
 }
@@ -153,7 +200,7 @@ std::string Channel::getTopic() const {
 	return _topic;
 }
 
-void Channel::setTopic(std::string &value) {
+void Channel::setTopic(std::string value) {
 	_topic = value;
 	modes.has_topic = true;
 }
@@ -185,4 +232,14 @@ bool validateUserCreds(Client& client, int fd) {
 		return false;
 	}
 	return true;
+}
+
+void sendCannotSendToChannel(Client* client, Channel* channel) {
+    std::string reply = ":server 404 " + client->getNickname() + " " + channel->getName() + " :Cannot send to channel\n";
+    sendResponse(reply, client->getFd());
+}
+
+void sendChanOpPrivsNeeded(Client* client, Channel* channel) {
+    std::string reply = ":server 482 " + client->getNickname() + " " + channel->getName() + " :You're not channel operator\n";
+    sendResponse(reply, client->getFd());
 }

@@ -11,6 +11,7 @@
 # include <sstream>
 # include <map>
 # include <cerrno>
+# include <netdb.h>
 # include "Client.hpp"
 # include "Channel.hpp"
 # include "Utils.hpp"
@@ -84,7 +85,8 @@ private:
 	std::vector<struct pollfd>		_pfds;
 	std::vector<Client*>			_clients;
 	std::vector<Channel*>			_channels;
-	std::map<Client*, Channel*>		_client_channel;
+	std::map<Client*, std::vector<Channel*> >		_client_channel;
+	// std::map<Client*, Channel*>		_client_channel;
 
 	void	_mainLoop();
 	void	_handleNewConnection();
@@ -93,8 +95,8 @@ private:
 	void	_parse_cmd(std::string& message, int sender_fd);
 	bool	_validateName(std::string& namem, int fd, std::string target, int flag) const;
 	bool	_checkAuth(Client& client, int fd, int flag);
-	bool	_validateChannelPass(std::string &msg, Channel *channel, int fd);
-	bool	_validateLimit(std::string message, int& clientsLimit, int fd) ;
+	bool	_validateChannelPass(std::string &msg, Channel *channel, int fd, Client* client);
+	bool	_validateLimit(std::string message, int& clientsLimit, int fd);
 
 	void	_pass(std::string& message, int sender_fd);
 	void	_user(std::string& message, int sender_fd);
@@ -105,6 +107,10 @@ private:
 	void	_topic(std::string& message, int sender_fd);
 	void	_mode(std::string& message, int sender_fd);
 	void	_capLs(std::string& message, int sender_fd);
+	void	_ping(std::string& message, int sender_fd);
+	void	_pong(std::string& message, int sender_fd);
+	void	_quit(std::string& message, int sender_fd);
+	void	_privmsg(std::string& message, int sender_fd);
 	void	_directMessage(std::string& message, int sender_fd);
 
 	std::vector<std::string>	_split(std::string& str);

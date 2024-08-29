@@ -17,15 +17,18 @@ public:
 	void	setTopicRestricted(bool value);
 	void	setKey(const std::string& value);
 	void	setHasKey(bool value);
-	void	setTopic(std::string &value);
+	void	setTopic(std::string value);
 	void	setTopicPrivelege(bool value);
 	void	setClientLimit(int value);
 	bool	addClientToChannel(Client& client, int fd, bool invited);
-	void	removeOperator(Client& remover, Client& target, int fd);
+	void	removeOperator(Client& remover, Client& target);
 	void	setOperator(Client& giver, Client& receiver, int fd);
+	void	setHasTopic(bool value);
 	bool	isOperator(Client& client);
 	void	removeClientFromChannel(Client& client);
 	void	broadcastMessage(Client& client, const std::string& message);
+	void	broadcast(const std::string& message);
+	void	broadcast(const std::string& message, Client* exclude);
 	
 	std::string			getName() const;
 	std::string			getKey() const;
@@ -60,5 +63,7 @@ private:
 };
 
 bool	validateUserCreds(Client& client, int fd);
+void	sendCannotSendToChannel(Client* client, Channel* channel);
+void	sendChanOpPrivsNeeded(Client* client, Channel* channel);
 
 #endif
