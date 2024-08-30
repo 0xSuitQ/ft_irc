@@ -90,9 +90,9 @@ bool Channel::addClientToChannel(Client& client, int fd, bool invited) {
 	this->broadcast(RPL_JOIN(client.getPrefix(), this->getName()));
 
 
-	if (!validateUserCreds(client, fd)) {
-		return false;
-	}
+	// if (!validateUserCreds(client, fd)) {
+	// 	return false;
+	// }
 	if (modes.invite_only && !invited) {
 		sendResponse("Could not connect to the channel. The channel is invite-only\n", fd);
 		return false;

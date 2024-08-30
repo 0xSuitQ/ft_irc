@@ -477,8 +477,8 @@ void	Server::_join(std::string& msg, int sender_fd) {
 	// *
 	// if (!_checkAuth(*client, sender_fd, 0))
 	// 	return;
-	if (!validateUserCreds(*client, sender_fd))
-		return;
+	// if (!validateUserCreds(*client, sender_fd))
+	// 	return;
 	// *
 	if (splitted_cmd.size() == 3 && !splitted_cmd[2].empty()) {
 		std::istringstream ss_passwords(splitted_cmd[2]);
@@ -499,8 +499,14 @@ void	Server::_join(std::string& msg, int sender_fd) {
 		
 		if (channelName[0] == '#')
 			channelName = channelName.substr(1); // Since channel name can include #
+
+		std::cout << "Channels: \n";
+		for (size_t i = 0; i < _channels.size(); i++) {
+			std::cout << _channels.at(i)->getName() << std::endl;
+		}
 	
 		std::vector<Channel*>::iterator it = std::find_if(_channels.begin(), _channels.end(), CompareChannelName(channelName));
+
 
 		if (splitted_cmd.size() > 3 || splitted_cmd.size() < 2) {
 			sendResponse("Wrong number of parameters\n", sender_fd);
