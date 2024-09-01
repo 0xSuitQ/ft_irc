@@ -96,7 +96,7 @@ private:
 	bool	_validateName(std::string& namem, int fd, std::string target, int flag) const;
 	bool	_checkAuth(Client& client, int fd, int flag);
 	bool	_validateChannelPass(std::string &msg, Channel *channel, int fd, Client* client);
-	bool	_validateLimit(std::string message, int& clientsLimit, int fd);
+	bool	_validateLimit(std::string message, int& clientsLimit);
 
 	void	_pass(std::string& message, int sender_fd);
 	void	_user(std::string& message, int sender_fd);

@@ -29,6 +29,7 @@
 # define ERR_NOSUCHCHANNEL(source,channel) "403 " + source + " " + channel + " :No such channel"
 # define RPL_PRIVMSG(source,target,message) ":" + source + " PRIVMSG " + target + " :" + message
 # define ERR_CANNOTSENDTOCHAN(source,channel) "404 " + source + " " + channel + " :Cannot send to channel"
+# define ERR_INVALIDMODEPARAM(source, channel, mode, param) "696 " + source + " " + channel + " " + mode + " " + param + " :Invalid mode parameter."
 
 void		sendResponse(const std::string msg, int fd);
 std::string	getCurrentTime();

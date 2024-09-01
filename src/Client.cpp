@@ -2,7 +2,12 @@
 
 Client::Client() {}
 
-Client::Client(int new_fd, const std::string &hostname) : _client_fd(new_fd), _client_id(_next_id++), _authenticated(false), _in_channel(false), _hostname(hostname) {}
+Client::Client(int new_fd, const std::string &hostname) : _client_fd(new_fd), _client_id(_next_id++), _authenticated(false), _in_channel(false), _hostname(hostname) {
+	std::ostringstream oss;
+	oss << "user_" << _client_fd;
+
+	_nickname = oss.str();
+}
 
 Client::~Client() {}
 

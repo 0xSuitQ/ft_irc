@@ -562,19 +562,14 @@ PLAN:
 6. Kick user to kick and display a message
 
 */
-void	Server::_kick(std::string& message, int sender_fd) {
+void	Server::_kick(std::string& message, int sender_fd) { // TODO: client is not removed, IRC client doesn't response to changes
 	std::vector<std::string> splitted_cmd = _split(message);
 	Client* client = *std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
 	std::vector<Channel*> channels = _client_channel[client];
 	std::string response;
 
-	// check for argc
-	if (!_checkAuth(*client, sender_fd, 0))
-		return;
-	if (!validateUserCreds(*client, sender_fd))
-		return;
 	if (splitted_cmd.size() < 4) {
-		sendResponse("Wrong number of parameters\n", sender_fd);
+		client->reply(ERR_NEEDMOREPARAMS(client->getNickname(), "KICK"), sender_fd);
 		return;
 	}
 	if (!client->getInChannel()) {
@@ -583,6 +578,8 @@ void	Server::_kick(std::string& message, int sender_fd) {
 	}
 
 	std::string channel_name = splitted_cmd[1];
+	if (channel_name.at(0) == '#')
+		channel_name = channel_name.substr(1);
 	std::string client_to_kick = splitted_cmd[2];
 	if (splitted_cmd[3].size() > 0) {
 		std::size_t pos = message.find(':');
@@ -735,7 +732,7 @@ void	Server::_mode(std::string& message, int sender_fd) {
     //     return;
     // }
 
-	if (splitted_cmd.size() > 2 && splitted_cmd.size() < 4) {
+	if (splitted_cmd.size() > 2 && splitted_cmd.size() < 5) {
 		std::string mode = splitted_cmd[2];
         char operation = mode[0];
         char mode_key = mode[1];
@@ -749,6 +746,7 @@ void	Server::_mode(std::string& message, int sender_fd) {
 
 		if (!channel->isOperator(*client)) {
 			// TODO: remove sendChanOpPrivsNeeded(client, channel);
+			// TODO: remove client from a channel  # !IMPORTANT
 			client->reply(ERR_CHANOPRIVSNEEDED(client->getNickname(), channel_name), sender_fd);
 			return;
 		}
@@ -798,11 +796,28 @@ void	Server::_mode(std::string& message, int sender_fd) {
 			if (splitted_cmd.size() < 4)
 				client->reply(ERR_NEEDMOREPARAMS(client->getNickname(), "MODE"), sender_fd);
 			else {
+				std::vector<Client*>::iterator receiver_it = std::find_if(_clients.begin(), _clients.end(), CompareClientNick(splitted_cmd[3]));
+				if (receiver_it == _clients.end()) {
+					client->reply(ERR_NOSUCHNICK(client->getNickname(), splitted_cmd[3]), sender_fd);
+					return;
+				}
+
 				Client* receiver = *std::find_if(_clients.begin(), _clients.end(), CompareClientNick(splitted_cmd[3]));
-				if (!receiver->getInChannel() || _client_channel[receiver] != _client_channel[client])
+				std::vector<Client> clients_in_channel = channel->getClients();
+				std::vector<Client>::iterator clients_in_channel_it = clients_in_channel.begin();
+				
+				for (; clients_in_channel_it != clients_in_channel.end(); ++clients_in_channel_it) {
+					if ((*clients_in_channel_it).getNickname() == receiver->getNickname())
+						break;
+				}
+				
+				if (clients_in_channel_it == clients_in_channel.end()) {
 					client->reply(ERR_USERNOTINCHANNEL(client->getNickname(), receiver->getNickname(), channel_name), sender_fd);
-				else if (receiver == client)
+				} else if (receiver->getFd() == client->getFd()) {
 					client->reply(ERR_NOSUCHNICK(client->getNickname(), receiver->getNickname()), sender_fd);
+					return ;
+				}
+
 				else if (operation == '-') {
 					// if (!_client_channel[receiver]->isOperator(*receiver))
 					// 	sendResponse("Unable to remove operator privelege. Client has no operator privelege.\n", sender_fd);
@@ -820,34 +835,28 @@ void	Server::_mode(std::string& message, int sender_fd) {
 				}
 			}
 			
-        } else if (mode_key == 'l') {  // TODO: doesn't work
-            // Set/remove the client limit to channel
+        } else if (mode_key == 'l') {
+            // Set / remove the client limit to channel
 			if (splitted_cmd.size() < 3)
 				client->reply(ERR_NEEDMOREPARAMS(client->getNickname(), "MODE"), sender_fd);
-			// else if (operation == '-' && splitted_cmd.size() != 2)
-			// 	sendResponse("Invalid arguments for this mode. Use \"MODE +l <limit>\" or \"MODE -l\".\n", sender_fd);
 			else if (operation == '-') {
-				// if (!_client_channel[client]->getHasClientsLimit())
-				// 	sendResponse("Unable to remove client limit. Client limit is already removed.\n", sender_fd);
-				// else {
-					channel->setClientLimit(0);
-					channel->broadcast(RPL_MODE(client->getPrefix(), channel->getName(), "-l", ""));
-				// }
+				channel->setClientLimit(0);
+				channel->broadcast(RPL_MODE(client->getPrefix(), channel->getName(), "-l", ""));
 			} else if (operation == '+') {
-				// if (splitted_cmd.size() != 3) {
-				// 	sendResponse("Invalid amount of arguments for this mode. Use \"MODE +l <limit>\" or \"MODE -l\".\n", sender_fd);
-				// 	return;
-				// }
+				if (splitted_cmd.size() != 4) {
+					client->reply(ERR_NEEDMOREPARAMS(client->getNickname(), "MODE"), sender_fd); // TODO: specify response 
+					return;
+				}
+
 				int clientsLimit;
-				// if (!_validateLimit(splitted_cmd[2], clientsLimit, sender_fd))
-				// 	return;
-				// if (_client_channel[client]->getHasClientsLimit() && _client_channel[client]->getClientsLimit() == clientsLimit)
-				// 	sendResponse("Unable to set clients limit. Use different value from what channel clients limit already has.\n", sender_fd);
+				if (!_validateLimit(splitted_cmd[3], clientsLimit)) {
+					client->reply(ERR_INVALIDMODEPARAM(client->getNickname(), channel->getName(), "l", splitted_cmd[3]), sender_fd);
+					return;
+				}
+	
 				clientsLimit = atoi(splitted_cmd[3].c_str());
-				// else {
-					channel->setClientLimit(clientsLimit);
-					channel->broadcast(RPL_MODE(client->getPrefix(), channel->getName(), "+l", splitted_cmd[3]));
-				// }
+				channel->setClientLimit(clientsLimit);
+				channel->broadcast(RPL_MODE(client->getPrefix(), channel->getName(), "+l", splitted_cmd[3]));
 			}
         } else {
 			// sendResponse("Invalid mode key. Use 'i', 't', 'k', 'o', or 'l'.\n", sender_fd);
@@ -956,19 +965,16 @@ void Server::_privmsg(std::string& message, int sender_fd) {
 	}
 }
 
-bool Server::_validateLimit(std::string message, int& clientsLimit, int fd) {
+bool Server::_validateLimit(std::string message, int& clientsLimit) {
 	try {
 		clientsLimit = std::atoi(message.c_str());
 	} catch (std::invalid_argument& e) {
-		sendResponse("Invalid limit. Please enter a valid number.\n", fd);
 		return false;
 	} catch (std::out_of_range& e) {
-		sendResponse("Limit is out of range. Please enter a smaller number.\n", fd);
 		return false;
 	}
 
 	if (clientsLimit < 1 || clientsLimit > 500) {
-		sendResponse("Limit is out of range. Please enter a smaller number.\n", fd);
 		return false;
 	} else
 		return true;

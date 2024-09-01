@@ -7,6 +7,7 @@
 # include <iostream>
 # include <cstdio>
 # include <unistd.h>
+# include <sstream>
 
 class Client {
 public:
