@@ -468,11 +468,6 @@ void	Server::_join(std::string& msg, int sender_fd) {
 	std::string password = "";
 	std::vector<std::string> passwords;
 
-	// if (msg == "JOIN :") {
-    // 	sendResponse("ERROR :No channel name given", sender_fd);
-	// 	return;
-	// }
-
 	// Separate it into function
 	// *
 	// if (!_checkAuth(*client, sender_fd, 0))
@@ -480,6 +475,7 @@ void	Server::_join(std::string& msg, int sender_fd) {
 	// if (!validateUserCreds(*client, sender_fd))
 	// 	return;
 	// *
+
 	if (splitted_cmd.size() == 3 && !splitted_cmd[2].empty()) {
 		std::istringstream ss_passwords(splitted_cmd[2]);
 		std::string temp;
@@ -498,7 +494,7 @@ void	Server::_join(std::string& msg, int sender_fd) {
 		password = (i < passwords.size()) ? passwords[i] : "";
 		
 		if (channelName[0] == '#')
-			channelName = channelName.substr(1); // Since channel name can include #
+			channelName = channelName.substr(1);
 
 		std::cout << "Channels: \n";
 		for (size_t i = 0; i < _channels.size(); i++) {
@@ -507,24 +503,17 @@ void	Server::_join(std::string& msg, int sender_fd) {
 	
 		std::vector<Channel*>::iterator it = std::find_if(_channels.begin(), _channels.end(), CompareChannelName(channelName));
 
-
 		if (splitted_cmd.size() > 3 || splitted_cmd.size() < 2) {
 			sendResponse("Wrong number of parameters\n", sender_fd);
 			return;
 		}
 
 		if (it == _channels.end()) {
-			std::cout << "we are here\n";
 			// if (!_validateName(channelName, client->getFd(), "Channel name", 1))
 			// 	return;
 			// if (password.size() > 0 && !_validateName(password, client->getFd(), "Channel password", 2))
 			// 	return;
 
-			// If client already in channel leave the channel | UPD: we do not need it anymore
-			// if (client->getInChannel()) {
-			// 	_client_channel[client]->removeClientFromChannel(*client);
-			// 	sendResponse("You left the old channel\n", sender_fd);
-			// }
 			Channel *new_channel = new Channel(channelName, *client);
 			std::cout << "channel is created\n";
 			if (password.size() > 0)
@@ -536,26 +525,15 @@ void	Server::_join(std::string& msg, int sender_fd) {
 				sendResponse("You are the operator here\n", sender_fd);
 		} else {
 			std::vector<Channel*> channels = _client_channel[client];
-			// for (std::vector<Channel*>::iterator it_channel = channels.begin(); it_channel != channels.end(); ++it_channel) {
-			// 	if ((*it_channel)->getName() == (*it)->getName()) {
-			// 		sendResponse("Enter different channel name\n", sender_fd);
-			// 		return;
-			// 	}
-			// }     NOT NEEDED
+
 			if ((*it)->getHasKey()) {
 				if (!_validateChannelPass(password, *it, sender_fd, client))
 					return;
 			}
-			// Can't put this higher since user can be removed from channel and not authenticated to enter new one
-			// if (client->getInChannel()) {
-			// 	_client_channel[client]->removeClientFromChannel(*client);
-			// 	sendResponse("You left the old channel\n", sender_fd);
-			// }
+
 			if (!(*it)->addClientToChannel(*client, sender_fd, 0))
 				return;
 			_client_channel[client].push_back(*it);
-			if ((*it)->isOperator(*client))
-				sendResponse("You are the operator here\n", sender_fd);
 		}
 		i++;
 	}
@@ -834,7 +812,7 @@ void	Server::_mode(std::string& message, int sender_fd) {
 				}
 			}
 			
-        } else if (mode_key == 'l') {
+        } else if (mode_key == 'l') {  // TODO: doesn't work
             // Set/remove the client limit to channel
 			if (splitted_cmd.size() < 3)
 				client->reply(ERR_NEEDMOREPARAMS(client->getNickname(), "MODE"), sender_fd);
