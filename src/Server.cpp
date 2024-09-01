@@ -141,20 +141,20 @@ void Server::_parse_cmd(std::string& message, int sender_fd) {
         (this->*(cmd_func->second))(message, sender_fd);
     } else {
         // Handle unknown command
-		Client* client = *std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
-		std::cout << "Client in channel: " << client->getInChannel() << "\n";
-		if (client->getInChannel()) {
-			// _client_channel[client]->broadcastMessage(*client, message);
-			// TODO | now it broadcasts a message to all channels where the client is present
-			std::map<Client*, std::vector<Channel*> >::iterator it = _client_channel.find(client);
-			if (it != _client_channel.end()) {
-				std::vector<Channel*>::iterator channel_it;
-				for (channel_it = it->second.begin(); channel_it != it->second.end(); ++channel_it) {
-					(*channel_it)->broadcastMessage(*client, message);
-				}
-			}
-		}
-		else
+		// Client* client = *std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
+		// std::cout << "Client in channel: " << client->getInChannel() << "\n";
+		// if (client->getInChannel()) {
+		// 	// _client_channel[client]->broadcastMessage(*client, message);
+		// 	// TODO | now it broadcasts a message to all channels where the client is present
+		// 	std::map<Client*, std::vector<Channel*> >::iterator it = _client_channel.find(client);
+		// 	if (it != _client_channel.end()) {
+		// 		std::vector<Channel*>::iterator channel_it;
+		// 		for (channel_it = it->second.begin(); channel_it != it->second.end(); ++channel_it) {
+		// 			(*channel_it)->broadcastMessage(*client, message);
+		// 		}
+		// 	}
+		// }
+		// else
 			sendResponse("Unknown command or not connected to a channel\n", sender_fd);
 		return;
     }

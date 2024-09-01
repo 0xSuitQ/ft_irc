@@ -57,7 +57,7 @@ void Channel::broadcast(const std::string& message, Client* exclude) {
 
 	while (it_b != it_e)
 	{
-		if (&(*it_b) == exclude)
+		if ((*it_b).getClientId() == exclude->getClientId())
 		{
 			it_b++;
 			continue;
