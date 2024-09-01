@@ -515,16 +515,24 @@ void	Server::_join(std::string& msg, int sender_fd) {
 			// 	return;
 
 			Channel *new_channel = new Channel(channelName, *client);
-			std::cout << "channel is created\n";
+			
 			if (password.size() > 0)
 				new_channel->setKey(password);
-			sendResponse("No channels found, new channel has been created\n", sender_fd);
+
 			_channels.push_back(new_channel);
 			_client_channel[client].push_back(new_channel);
-			if (new_channel->isOperator(*client))
-				sendResponse("You are the operator here\n", sender_fd);
 		} else {
 			std::vector<Channel*> channels = _client_channel[client];
+
+			std::vector<Client> clients_in_channel = (*it)->getClients();
+			std::vector<Client>::iterator client_in_channel_it = clients_in_channel.begin();
+
+			for (; client_in_channel_it != clients_in_channel.end(); ++client_in_channel_it) {
+				// Check if the user is already in the channel			
+				if ((*client_in_channel_it).getNickname() == client->getNickname()) {
+					return;
+				} 
+			}
 
 			if ((*it)->getHasKey()) {
 				if (!_validateChannelPass(password, *it, sender_fd, client))
