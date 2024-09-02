@@ -10,7 +10,7 @@ Channel::Channel() {
 	setName("Main Channel");
 }
 
-Channel::Channel(const std::string name, Client& client) {
+Channel::Channel(const std::string name, Client* client) {
 	modes.invite_only = false;
 	modes.has_topic = false;
 	modes.topic_privelege = false;
@@ -21,49 +21,49 @@ Channel::Channel(const std::string name, Client& client) {
 	_clients.push_back(client);
 	_operators.push_back(client);
 	_clients_count++;
-	client.setInChannel(true);
+	client->setInChannel(true);
 
-	client.reply(RPL_NAMREPLY(client.getNickname(), this->getName(), client.getNickname() + " "), client.getFd());
-	client.reply(RPL_ENDOFNAMES(client.getNickname(), this->getName()), client.getFd());
-	this->broadcast(RPL_JOIN(client.getPrefix(), this->getName()));
+	client->reply(RPL_NAMREPLY(client->getNickname(), this->getName(), client->getNickname() + " "), client->getFd());
+	client->reply(RPL_ENDOFNAMES(client->getNickname(), this->getName()), client->getFd());
+	this->broadcast(RPL_JOIN(client->getPrefix(), this->getName()));
 }
 
 Channel::~Channel() {}
 
-void Channel::broadcastMessage(Client& client, const std::string& message) {
+void Channel::broadcastMessage(Client* client, const std::string& message) {
 	std::string time = getCurrentTime();
-	std::string broadcast_message = time + " " + client.getNickname() + ": " + message + "\n";
+	std::string broadcast_message = time + " " + client->getNickname() + ": " + message + "\n";
 	 debugPrint();
-	for (std::vector<Client>::iterator it = _clients.begin(); it != _clients.end(); ++it) {
+	for (std::vector<Client*>::iterator it = _clients.begin(); it != _clients.end(); ++it) {
 		if (*it != client)
-			it->receiveMessage(broadcast_message);
+			(*it)->receiveMessage(broadcast_message);
 	}
 }
 
 void Channel::broadcast(const std::string& message) {
-	std::vector<Client>::iterator it_b = _clients.begin();
-	std::vector<Client>::iterator it_e = _clients.end();
+	std::vector<Client*>::iterator it_b = _clients.begin();
+	std::vector<Client*>::iterator it_e = _clients.end();
 
 	while (it_b != it_e)
 	{
-		it_b->write(message, (*it_b).getFd());
+		(*it_b)->write(message, (*it_b)->getFd());
 		it_b++;
 	}
 }
 
 void Channel::broadcast(const std::string& message, Client* exclude) {
-	std::vector<Client>::iterator it_b = _clients.begin();
-	std::vector<Client>::iterator it_e = _clients.end();
+	std::vector<Client*>::iterator it_b = _clients.begin();
+	std::vector<Client*>::iterator it_e = _clients.end();
 
 	while (it_b != it_e)
 	{
-		if ((*it_b).getClientId() == exclude->getClientId())
+		if ((*it_b)->getClientId() == exclude->getClientId())
 		{
 			it_b++;
 			continue;
 		}
 
-		it_b->write(message, (*it_b).getFd());
+		(*it_b)->write(message, (*it_b)->getFd());
 		it_b++;
 	}
 }
@@ -75,19 +75,19 @@ void Channel::debugPrint() const {
     std::cout << "Clients vector capacity: " << _clients.capacity() << "\n";
 }
 
-bool Channel::addClientToChannel(Client& client, int fd, bool invited) {
+bool Channel::addClientToChannel(Client* client, int fd, bool invited) {
 	std::string users = "";
-    std::vector<Client> clients = this->getClients();
-    std::vector<Client>::iterator it_b = clients.begin();
-    std::vector<Client>::iterator it_e = clients.end();
+    std::vector<Client*> clients = this->getClients();
+    std::vector<Client*>::iterator it_b = clients.begin();
+    std::vector<Client*>::iterator it_e = clients.end();
     while (it_b != it_e) {
-        users.append((*it_b).getNickname() + " ");
+        users.append((*it_b)->getNickname() + " ");
         it_b++;
     }
 	
-	client.reply(RPL_NAMREPLY(client.getNickname(), this->getName(), users), fd);
-	client.reply(RPL_ENDOFNAMES(client.getNickname(), this->getName()), fd);
-	this->broadcast(RPL_JOIN(client.getPrefix(), this->getName()));
+	client->reply(RPL_NAMREPLY(client->getNickname(), this->getName(), users), fd);
+	client->reply(RPL_ENDOFNAMES(client->getNickname(), this->getName()), fd);
+	this->broadcast(RPL_JOIN(client->getPrefix(), this->getName()));
 
 
 	// if (!validateUserCreds(client, fd)) {
@@ -103,35 +103,35 @@ bool Channel::addClientToChannel(Client& client, int fd, bool invited) {
 	// }
 	// if (modes.has_clients_limit && _clients_count >= _clients_limit) {
 	if (this->getHasClientsLimit() && _clients_count >= getClientsLimit()) {
-		client.reply(ERR_CHANNELISFULL(client.getNickname(), this->getName()), fd);
+		client->reply(ERR_CHANNELISFULL(client->getNickname(), this->getName()), fd);
 		return false;
 	} else {
 		_clients.push_back(client);
 		_clients_count++;
-		client.setInChannel(true);
+		client->setInChannel(true);
 		sendResponse("Succesfully connected to the channel\n", fd);
 		return true;
 	}
 }
 
-void Channel::removeClientFromChannel(Client& client) {
+void Channel::removeClientFromChannel(Client* client) {
 	// if (this->isOperator(client)) {
 	// 	_operators.erase(std::remove(_operators.begin(), _operators.end(), client), _operators.end());
 	// }
 	_clients.erase(std::remove(_clients.begin(), _clients.end(), client), _clients.end());
 	_clients_count--;
-	client.setInChannel(false);
+	client->setInChannel(false);
 }
 
 void Channel::setName(std::string name) { _name = name; }
 
-void Channel::setOperator(Client& giver, Client& receiver, int fd) {
+void Channel::setOperator(Client* giver, Client* receiver, int fd) {
 	if (isOperator(giver)) {
-		for (std::vector<Client>::iterator it = _clients.begin(); it != _clients.end(); ++it) {
+		for (std::vector<Client*>::iterator it = _clients.begin(); it != _clients.end(); ++it) {
 			if (*it == receiver) {
 				_operators.push_back(receiver);
 				sendResponse("You successfully granted operator role.\n", fd);
-				sendResponse("You received operator role on this channel.\n", receiver.getFd());
+				sendResponse("You received operator role on this channel.\n", receiver->getFd());
 				return;
 			} else {
 				sendResponse("Client is not a channel member\n", fd);
@@ -142,9 +142,9 @@ void Channel::setOperator(Client& giver, Client& receiver, int fd) {
 	}
 }
 
-void Channel::removeOperator(Client& remover, Client& target) {
+void Channel::removeOperator(Client* remover, Client* target) {
 	if (isOperator(remover)) {
-		for (std::vector<Client>::iterator it = _operators.begin(); it != _operators.end(); ++it) {
+		for (std::vector<Client*>::iterator it = _operators.begin(); it != _operators.end(); ++it) {
 			if (*it == target) {
 				_operators.erase(it);
 				break;
@@ -153,11 +153,11 @@ void Channel::removeOperator(Client& remover, Client& target) {
 	}
 }
 
-std::vector<Client>	&Channel::getClients() {
+std::vector<Client*>	&Channel::getClients() {
 	return _clients;
 }
 
-bool Channel::isOperator(Client& client) {
+bool Channel::isOperator(Client* client) {
 	return std::find(_operators.begin(), _operators.end(), client) != _operators.end();
 }
 

@@ -443,17 +443,19 @@ void	Server::_nick(std::string& message, int sender_fd) {
 		return;
 	}
 
-	std::vector<Client*>::iterator it = std::find_if(_clients.begin(), _clients.end(), CompareClientNick(splitted_cmd[1]));
+	std::string new_nick = splitted_cmd[1];
+
+	std::vector<Client*>::iterator it = std::find_if(_clients.begin(), _clients.end(), CompareClientNick(new_nick));
 	if (it != _clients.end() && (*it)->getFd() != sender_fd) {
-		client->reply(ERR_NICKNAMEINUSE(client->getNickname()), sender_fd);
+		client->reply(ERR_NICKNAMEINUSE(new_nick), sender_fd);
 	} else {
 		// Nickname is not occupied or is occupied by the same client
-		if (splitted_cmd[1] == client->getNickname()){
-			client->reply(ERR_NICKNAMEINUSE(client->getNickname()), sender_fd);
+		if (new_nick == client->getNickname()){
+			client->reply(ERR_NICKNAMEINUSE(new_nick), sender_fd);
 		}
 		else {
 			// if (_validateName(splitted_cmd[1], client->getFd(), "Nickname", 0)) {
-			client->setNickname(splitted_cmd[1]);
+			client->setNickname(new_nick);
 			// }
 		}
 	}
@@ -514,7 +516,7 @@ void	Server::_join(std::string& msg, int sender_fd) {
 			// if (password.size() > 0 && !_validateName(password, client->getFd(), "Channel password", 2))
 			// 	return;
 
-			Channel *new_channel = new Channel(channelName, *client);
+			Channel *new_channel = new Channel(channelName, client);
 			
 			if (password.size() > 0)
 				new_channel->setKey(password);
@@ -524,14 +526,14 @@ void	Server::_join(std::string& msg, int sender_fd) {
 		} else {
 			std::vector<Channel*> channels = _client_channel[client];
 
-			std::vector<Client> clients_in_channel = (*it)->getClients();
-			std::vector<Client>::iterator client_in_channel_it = clients_in_channel.begin();
+			std::vector<Client*> clients_in_channel = (*it)->getClients();
+			std::vector<Client*>::iterator client_in_channel_it = clients_in_channel.begin();
 
 			for (; client_in_channel_it != clients_in_channel.end(); ++client_in_channel_it) {
 				// Check if the user is already in the channel			
-				if ((*client_in_channel_it).getNickname() == client->getNickname()) {
+				if ((*client_in_channel_it)->getNickname() == client->getNickname()) {
 					return;
-				} 
+				}
 			}
 
 			if ((*it)->getHasKey()) {
@@ -539,9 +541,18 @@ void	Server::_join(std::string& msg, int sender_fd) {
 					return;
 			}
 
-			if (!(*it)->addClientToChannel(*client, sender_fd, 0))
+			if (!(*it)->addClientToChannel(client, sender_fd, 0))
 				return;
 			_client_channel[client].push_back(*it);
+
+			// debug
+			std::cout << "channels in _client_channel for the client:\n";
+			
+			std::vector<Channel*> channels1 = _client_channel[client];
+			std::vector<Channel*>::iterator it_beg = channels1.begin();
+			for (; it_beg != channels1.end(); ++it_beg) {
+				std::cout << (*it_beg)->getName() << "\n";
+			}
 		}
 		i++;
 	}
@@ -588,24 +599,27 @@ void	Server::_kick(std::string& message, int sender_fd) { // TODO: client is not
 	}
 	
 	Channel* channel = *std::find_if(channels.begin(), channels.end(), CompareChannelName(channel_name));
-	if (!channel->isOperator(*client)) {
+	if (!channel->isOperator(client)) {
         client->reply(ERR_CHANOPRIVSNEEDED(client->getNickname(), channel_name), sender_fd);
 		// TODO: remove sendChanOpPrivsNeeded(client, channel);
 		return;
 	}
 
-	std::vector<Client> clients = channel->getClients();
+	std::vector<Client*> clients = channel->getClients();
 
-	std::vector<Client>::iterator it_to_kick = std::find_if(clients.begin(), clients.end(), CompareClientNickRef(client_to_kick));
+	std::vector<Client*>::iterator it_to_kick = std::find_if(clients.begin(), clients.end(), CompareClientNick(client_to_kick));
 	if (it_to_kick == clients.end()) {
         client->reply(ERR_USERNOTINCHANNEL(client->getNickname(), client_to_kick, channel_name), sender_fd);
 		return;
-	} else if (it_to_kick->getClientId() == client->getClientId()) {
+	} else if ((*it_to_kick)->getClientId() == client->getClientId()) {
         client->reply(ERR_NOSUCHNICK(client->getNickname(), client_to_kick), sender_fd);
 		return;
 	} else {
-		channel->removeClientFromChannel(*it_to_kick);
+		(*it_to_kick)->reply(":" + client->getPrefix() + " PART " + channel_name + " :" + message + "\n", (*it_to_kick)->getFd());
+
+		// client->reply(RPL_PART(client->getNickname(), channel_name, message), sender_fd);
 		channel->broadcast(RPL_KICK(client->getPrefix(), channel->getName(), client_to_kick, message));
+		channel->removeClientFromChannel(*it_to_kick);
 		
 		// Remove channel from client's channels
 		std::map<Client*, std::vector<Channel*> >::iterator it_client_channel = _client_channel.find(client);
@@ -678,7 +692,7 @@ void	Server::_topic(std::string& message, int sender_fd) {
 	// 	else
 	// 		sendResponse("No topic in the channel\n", sender_fd);
 	//} 
-	if (channel->getTopicPrivelege() && !channel->isOperator(*client)) {
+	if (channel->getTopicPrivelege() && !channel->isOperator(client)) {
 		sendChanOpPrivsNeeded(client, channel);
 	// } else if (message.size() > 24) {
 		// sendResponse("Topic is too long\n", sender_fd);
@@ -742,9 +756,15 @@ void	Server::_mode(std::string& message, int sender_fd) {
 			channel_name = channel_name.substr(1);
 		}
 
-		Channel* channel = *find_if(channels.begin(), channels.end(), CompareChannelName(channel_name));
+		std::vector<Channel*>::iterator channel_it = find_if(channels.begin(), channels.end(), CompareChannelName(channel_name));
+		if (channel_it == channels.end()) {
+            client->reply(ERR_NOSUCHCHANNEL(client->getNickname(), channel_name), sender_fd);
+            return;
+        }
 
-		if (!channel->isOperator(*client)) {
+        Channel* channel = *channel_it;
+
+		if (!channel->isOperator(client)) {
 			// TODO: remove sendChanOpPrivsNeeded(client, channel);
 			// TODO: remove client from a channel  # !IMPORTANT
 			client->reply(ERR_CHANOPRIVSNEEDED(client->getNickname(), channel_name), sender_fd);
@@ -780,17 +800,12 @@ void	Server::_mode(std::string& message, int sender_fd) {
 			// 	sendResponse("Invalid arguments for this mode. Use \"MODE +k <password>\" or \"MODE -k\".\n", sender_fd);
 			else if (operation == '+') {
 				password = splitted_cmd[3];
-				// if (!_validateName(password, sender_fd, "Channel password", 2))
-				// 	return;
+
 				channel->setKey(password);
-				channel->broadcast(RPL_MODE(client->getPrefix(), channel->getName(), (channel->getHasKey() ? "+k" : "-k"), (channel->getHasKey() ? password : "")));
+				channel->broadcast(RPL_MODE(client->getPrefix(), channel->getName(), "+k", password));
 			} else if (operation == '-') {
-				// if (!_client_channel[client]->getHasKey())
-				// 	sendResponse("No password to be removed.\n", sender_fd);
-				// else {
 					channel->setHasKey(false);
-					channel->broadcast(RPL_MODE(client->getPrefix(), channel->getName(), (channel->getHasKey() ? "+k" : "-k"), (channel->getHasKey() ? password : ""))); // TODO: change key mode handler
-				// }
+					channel->broadcast(RPL_MODE(client->getPrefix(), channel->getName(), "-k", ""));
 			}
         } else if (mode_key == 'o') {
 			if (splitted_cmd.size() < 4)
@@ -803,11 +818,11 @@ void	Server::_mode(std::string& message, int sender_fd) {
 				}
 
 				Client* receiver = *std::find_if(_clients.begin(), _clients.end(), CompareClientNick(splitted_cmd[3]));
-				std::vector<Client> clients_in_channel = channel->getClients();
-				std::vector<Client>::iterator clients_in_channel_it = clients_in_channel.begin();
+				std::vector<Client*> clients_in_channel = channel->getClients();
+				std::vector<Client*>::iterator clients_in_channel_it = clients_in_channel.begin();
 				
 				for (; clients_in_channel_it != clients_in_channel.end(); ++clients_in_channel_it) {
-					if ((*clients_in_channel_it).getNickname() == receiver->getNickname())
+					if ((*clients_in_channel_it)->getNickname() == receiver->getNickname())
 						break;
 				}
 				
@@ -819,19 +834,11 @@ void	Server::_mode(std::string& message, int sender_fd) {
 				}
 
 				else if (operation == '-') {
-					// if (!_client_channel[receiver]->isOperator(*receiver))
-					// 	sendResponse("Unable to remove operator privelege. Client has no operator privelege.\n", sender_fd);
-					// else {
-						channel->removeOperator(*client, *receiver);
-						channel->broadcast(RPL_MODE(client->getPrefix(), channel_name, (channel->isOperator(*receiver) ? "+o" : "-o"), (channel->isOperator(*receiver) ? receiver->getNickname() : ""))); // TODO: make it clear with + and - conditions
-					// }
+					channel->removeOperator(client, receiver);
+					channel->broadcast(RPL_MODE(client->getPrefix(), channel_name, "-o", receiver->getNickname()));
 				} else if (operation == '+') {
-					// if (_client_channel[receiver]->isOperator(*receiver))
-					// 	sendResponse("Unable to grant operator privelege. Client already has operator privelege.\n", sender_fd);
-					// else {
-						channel->setOperator(*client, *receiver, sender_fd);
-						channel->broadcast(RPL_MODE(client->getPrefix(), channel_name, (channel->isOperator(*receiver) ? "+o" : "-o"), (channel->isOperator(*receiver) ? receiver->getNickname() : "")));
-					// }
+					channel->setOperator(client, receiver, sender_fd);
+					channel->broadcast(RPL_MODE(client->getPrefix(), channel_name, "+o", receiver->getNickname()));
 				}
 			}
 			
@@ -942,7 +949,14 @@ void Server::_privmsg(std::string& message, int sender_fd) {
 	if (target_name.at(0) == '#') {
 		std::vector<Channel*>::iterator channel_it = find_if(channels.begin(), channels.end(), CompareChannelName(target_name.substr(1)));
 
+		// debug
+		std::vector<Channel*>::iterator it = channels.begin();
+		for (; it != channels.end(); ++it) {
+			std::cout << "Channel in channels for client: " << (*it)->getName() << "\n";
+		}
+
 		if (channel_it == channels.end()) {
+			std::cout << "we are fcking here\n";
 			client->reply(ERR_NOSUCHCHANNEL(client->getNickname(), target_name), sender_fd);
 			return;
 		}

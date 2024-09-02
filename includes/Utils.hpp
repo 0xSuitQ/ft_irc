@@ -20,7 +20,7 @@
 # define ERR_CHANOPRIVSNEEDED(source,channel) "482 " + source + " " + channel + " :You're not channel operator"
 # define ERR_USERNOTINCHANNEL(source,nickname,channel) "441 " + source + " " + nickname + " " + channel + " :They aren't on that channel"
 # define ERR_NOSUCHNICK(source,nickname) "401 " + source + " " + nickname + " :No such nick"
-# define RPL_KICK(source,channel,target,reason) ":" + source + " KICK " + channel + " " + target + " :" + reason
+# define RPL_KICK(source,channel,target,reason) ":" + source + " KICK #" + channel + " " + target + " :" + reason
 # define ERR_CHANOPRIVSNEEDED(source,channel) "482 " + source + " " + channel + " :You're not channel operator"
 # define ERR_UNKNOWNMODE(source,channel, operation) "501 " + source + " " + channel + " " + operation + " :Is unknown mode char.\n"
 # define RPL_MODE(source,channel,modes,args) ":" + source + " MODE " + channel + " " + modes + " " + args
