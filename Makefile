@@ -1,6 +1,6 @@
 NAME := ircserv
 CC := g++
-CFLAGS := -std=c++98 -Wall -Wextra -Werror
+CFLAGS := -std=c++98 -Wall -Wextra -Werror -g
 SRC_DIR := ./src
 HSRCS := ./includes
 OBJ_DIR := obj

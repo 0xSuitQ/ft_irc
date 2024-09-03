@@ -7,11 +7,12 @@
 # include <iostream>
 # include <cstdio>
 # include <unistd.h>
+# include <sstream>
 
 class Client {
 public:
 	Client();
-	Client(int new_fd);
+	Client(int new_fd, const std::string &hostname);
 	~Client();
 
 	// Client& operator=(const Client& other);
@@ -26,19 +27,26 @@ public:
 	void		setAuth(bool value);
 	void		setNickname(std::string& str);
 	std::string	getNickname() const;
-	void		setUsername(std::string& str);
+	void		setUsername(std::string str);
 	std::string	getUsername() const;
 	void		setInChannel(bool value);
 	bool		getInChannel() const;
+	int			getClientId() const;
 	void		receiveMessage(const std::string& message);
+	std::string	getPrefix() const;
+	void		write(const std::string& message, int fd) const;
+	void		reply(const std::string& reply, int fd);
 
 private:
+	static int	_next_id;
 	int			_client_fd;
+	int			_client_id;
 	bool		_authenticated;
 	bool		_in_channel;
 	std::string _buffer;
 	std::string	_nickname;
 	std::string	_username;
+	std::string _hostname;
 	
 };
 
