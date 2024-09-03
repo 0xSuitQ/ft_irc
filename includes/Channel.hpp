@@ -67,3 +67,31 @@ void	sendCannotSendToChannel(Client* client, Channel* channel);
 void	sendChanOpPrivsNeeded(Client* client, Channel* channel);
 
 #endif
+
+
+
+
+
+/*
+Received complete message: KICK #new nandroso_ :
+Prefix: nandroso_!user_1@localhost
+Prefix: nandroso_!user_1@localhost
+Send to client: :nandroso_!user_1@localhost :nandroso_!user_1@localhost PART #new :nandroso_
+
+Prefix: nandroso!user_0@localhost
+Send to client: :nandroso!user_0@localhost KICK #new nandroso_ :
+Send to client: :nandroso!user_0@localhost KICK #new nandroso_ :
+
+
+
+Wrong:
+
+Received complete message: KICK #new nandroso :
+Prefix: nandroso!user_0@localhost
+Prefix: nandroso!user_0@localhost
+Send to client: :nandroso!user_0@localhost :nandroso!user_0@localhost PART #new :nandroso
+
+Prefix: nandroso_!user_1@localhost
+Send to client: :nandroso_!user_1@localhost KICK #new nandroso :
+Send to client: :nandroso_!user_1@localhost KICK #new nandroso :
+*/

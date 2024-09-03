@@ -84,10 +84,6 @@ bool Channel::addClientToChannel(Client* client, int fd, bool invited) {
         users.append((*it_b)->getNickname() + " ");
         it_b++;
     }
-	
-	client->reply(RPL_NAMREPLY(client->getNickname(), this->getName(), users), fd);
-	client->reply(RPL_ENDOFNAMES(client->getNickname(), this->getName()), fd);
-	this->broadcast(RPL_JOIN(client->getPrefix(), this->getName()));
 
 
 	// if (!validateUserCreds(client, fd)) {
@@ -106,6 +102,9 @@ bool Channel::addClientToChannel(Client* client, int fd, bool invited) {
 		client->reply(ERR_CHANNELISFULL(client->getNickname(), this->getName()), fd);
 		return false;
 	} else {
+		client->reply(RPL_NAMREPLY(client->getNickname(), this->getName(), users), fd);
+		client->reply(RPL_ENDOFNAMES(client->getNickname(), this->getName()), fd);
+		this->broadcast(RPL_JOIN(client->getPrefix(), this->getName()));
 		_clients.push_back(client);
 		_clients_count++;
 		client->setInChannel(true);
@@ -114,7 +113,7 @@ bool Channel::addClientToChannel(Client* client, int fd, bool invited) {
 	}
 }
 
-void Channel::removeClientFromChannel(Client* client) {
+void Channel::removeClientFromChannel(Client* client) { // TODO: remove from ops
 	// if (this->isOperator(client)) {
 	// 	_operators.erase(std::remove(_operators.begin(), _operators.end(), client), _operators.end());
 	// }
