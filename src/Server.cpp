@@ -620,7 +620,7 @@ void	Server::_kick(std::string& message, int sender_fd) { // TODO: client is not
         client->reply(ERR_NOSUCHNICK(client->getNickname(), client_to_kick), sender_fd);
 		return;
 	} else {
-		(*it_to_kick)->reply(":" + client->getPrefix() + " PART #" + channel_name + " :" + (*it_to_kick)->getNickname() + "\n", (*it_to_kick)->getFd());
+		(*it_to_kick)->reply("PART #" + channel_name + " :" + (*it_to_kick)->getNickname() + "\n", (*it_to_kick)->getFd());
 
 		// client->reply(RPL_PART(client->getNickname(), channel_name, message), sender_fd);
 		channel->broadcast(RPL_KICK(client->getPrefix(), channel->getName(), client_to_kick, message));
@@ -1043,7 +1043,7 @@ void	Server::_leave(std::string& message, int sender_fd) {
 
 	Channel* channel = *channel_it;
 
-	client->reply(":" + client->getPrefix() + " PART #" + channel_name + " :" + client->getNickname() + "\n", client->getFd());
+	client->reply("PART #" + channel_name + " :" + client->getNickname() + "\n", client->getFd());
 	channel->broadcast(RPL_KICK(client->getPrefix(), channel->getName(), client->getNickname(), reply_message)); // TODO: add different RPL_KICK to be RPL_LEAVE
 	channel->removeClientFromChannel(client);
 	
