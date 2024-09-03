@@ -120,13 +120,12 @@ void Server::_parse_cmd(std::string& message, int sender_fd) {
 	preset_cmds["JOIN"] = &Server::_join;
 	// preset_cmds["INVITE"] = &Server::_invite;
 	preset_cmds["KICK"] = &Server::_kick;
-	// preset_cmds["PART"] = &Server::_leave;
+	preset_cmds["PART"] = &Server::_leave;
 	preset_cmds["TOPIC"] = &Server::_topic;
 	preset_cmds["MODE"] = &Server::_mode;
 	preset_cmds["DM"] = &Server::_directMessage;
 	preset_cmds["CAP"] = &Server::_capLs;
 	preset_cmds["PING"] = &Server::_ping;
-	preset_cmds["QUIT"] = &Server::_quit;
 	preset_cmds["QUIT"] = &Server::_quit;
 	preset_cmds["PRIVMSG"] = &Server::_privmsg;
 
@@ -551,8 +550,8 @@ void	Server::_join(std::string& msg, int sender_fd) {
 				return;
 			_client_channel[client].push_back(*it);
 
-			// debug
-			std::cout << "channels in _client_channel for the client:\n";
+			if ((*it)->getHasTopic())
+				(*it)->broadcast(RPL_TOPIC(client->getPrefix(), (*it)->getName(), (*it)->getTopic()));
 			
 			std::vector<Channel*> channels1 = _client_channel[client];
 			std::vector<Channel*>::iterator it_beg = channels1.begin();
@@ -621,7 +620,7 @@ void	Server::_kick(std::string& message, int sender_fd) { // TODO: client is not
         client->reply(ERR_NOSUCHNICK(client->getNickname(), client_to_kick), sender_fd);
 		return;
 	} else {
-		(*it_to_kick)->reply(":" + client->getPrefix() + " PART " + channel_name + " :" + message + "\n", (*it_to_kick)->getFd());
+		(*it_to_kick)->reply(":" + client->getPrefix() + " PART #" + channel_name + " :" + (*it_to_kick)->getNickname() + "\n", (*it_to_kick)->getFd());
 
 		// client->reply(RPL_PART(client->getNickname(), channel_name, message), sender_fd);
 		channel->broadcast(RPL_KICK(client->getPrefix(), channel->getName(), client_to_kick, message));
@@ -679,9 +678,8 @@ void	Server::_capLs(std::string& message, int sender_fd) {
 /*
 
 Example:  /TOPIC
-15:51     /TOPIC The robots are taking over!
-15:51     /TOPIC -delete #irssi
-15:51     /TOPIC #shakespeare /bb|[^b]{2}/
+15:51     /TOPIC #<channel_name> :The robots are taking over!
+15:51     /TOPIC #<channel_name> :
 
 received input: TOPIC #new :hello world
 (if empty then remove it)
@@ -708,38 +706,28 @@ void	Server::_topic(std::string& message, int sender_fd) {
 	}
 
 	std::string channel_name = splitted_cmd[1];
+	if (channel_name.at(0) == '#') 
+		channel_name = channel_name.substr(1);
 	Channel* channel = *std::find_if(channels.begin(), channels.end(), CompareChannelName(channel_name));
 
-	// if (splitted_cmd.size() == 1) { // no need, since topic is stored locally
-	// 	if (_client_channel[client]->getHasTopic()) {
-	// 		topic = "Channel Topic: " + _client_channel[client]->getTopic() + "\n";
-	// 		sendResponse(topic, sender_fd);
-	// 	}
-	// 	else
-	// 		sendResponse("No topic in the channel\n", sender_fd);
-	//} 
 	if (channel->getTopicPrivelege() && !channel->isOperator(client)) {
 		sendChanOpPrivsNeeded(client, channel);
-	// } else if (message.size() > 24) {
-		// sendResponse("Topic is too long\n", sender_fd);
 	} else {
-		// size_t pos = message.find_first_not_of(" \t\v\f"); // Example:     TOPIC topic_itself
-		// message = message.substr(pos);
-		// message = message.substr(5);
 		pos = message.find(':');
-		if (pos != std::string::npos) {
-			topic = message.substr(pos);
-		}
+		if (pos != std::string::npos)
+			topic = message.substr(pos + 1);
 
 		if (topic.size() > 0) {
 			channel->setTopic(topic);
-			response = ":server 332 " + client->getNickname() + " " + channel->getName() + " " + topic + "\n";
-    		sendResponse(response, sender_fd);
+			// response = ":server 332 " + client->getNickname() + " " + channel->getName() + " " + topic + "\n";
+    		// sendResponse(response, sender_fd);
+			channel->broadcast(RPL_TOPIC(client->getPrefix(), channel->getName(), topic));
 		} else {
 			channel->setTopic("");
 			channel->setHasTopic(false);
-			response = ":server 331 " + client->getNickname() + " " + channel->getName() + " :Topic removed\n";
-			sendResponse(response, sender_fd);
+			// response = ":server 331 " + client->getNickname() + " " + channel->getName() + " :Topic removed\n";
+			// sendResponse(response, sender_fd);
+			channel->broadcast(RPL_NOTOPIC(client->getPrefix(), channel->getName()));
 		}
 	}
 }
@@ -766,11 +754,6 @@ void	Server::_mode(std::string& message, int sender_fd) {
 	std::vector<Channel*> channels = _client_channel[client];
 	std::string response;
 	std::string password = "";
-
-	// if (!client->getInChannel()) { // No need since it's covered by a client
-    //     sendResponse("You are not connected to any channel\n", sender_fd);
-    //     return;
-    // }
 
 	if (splitted_cmd.size() > 2 && splitted_cmd.size() < 5) {
 		std::string mode = splitted_cmd[2];
@@ -1043,7 +1026,7 @@ void	Server::_leave(std::string& message, int sender_fd) {
 		size_t pos = message.find(':');
 
 		if (pos != std::string::npos) {
-			reply_message = message.substr(pos);
+			reply_message = message.substr(pos + 1);
 		}
 	}
 
@@ -1060,6 +1043,7 @@ void	Server::_leave(std::string& message, int sender_fd) {
 
 	Channel* channel = *channel_it;
 
+	client->reply(":" + client->getPrefix() + " PART #" + channel_name + " :" + client->getNickname() + "\n", client->getFd());
 	channel->broadcast(RPL_KICK(client->getPrefix(), channel->getName(), client->getNickname(), reply_message)); // TODO: add different RPL_KICK to be RPL_LEAVE
 	channel->removeClientFromChannel(client);
 	
