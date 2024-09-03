@@ -7,11 +7,12 @@
 # include <sstream>
 # include <iostream>
 
+# define RPL_WELCOME(source) "001 " + source + " :Welcome " + source + " to the ft_irc network"
 # define ERR_CHANNELISFULL(source,channel) "471 " + source + " " + channel + " :Cannot join channel (+l)"
 # define ERR_BADCHANNELKEY(source,channel) "475 " + source + " " + channel + " :Cannot join channel (+k)"
-# define RPL_NAMREPLY(source,channel,users) "353 " + source + " = " + channel + " :" + users
+# define RPL_NAMREPLY(source,channel,users) "353 " + source + " = #" + channel + " :" + users
 # define RPL_ENDOFNAMES(source,channel) "366 " + source + " " + channel + " :End of /NAMES list."
-# define RPL_JOIN(source,channel) ":" + source + " JOIN :" + channel
+# define RPL_JOIN(source,channel) ":" + source + " JOIN :#" + channel
 # define ERR_ALREADYREGISTERED(source) "462 " + source + " :You may not register"
 # define ERR_NEEDMOREPARAMS(source,command) "461 " + source + " " + command + " :Not enough parameters"
 # define ERR_NONICKNAMEGIVEN(source) "431 " + source + " :Nickname not given"
@@ -23,7 +24,7 @@
 # define RPL_KICK(source,channel,target,reason) ":" + source + " KICK #" + channel + " " + target + " :" + reason
 # define ERR_CHANOPRIVSNEEDED(source,channel) "482 " + source + " " + channel + " :You're not channel operator"
 # define ERR_UNKNOWNMODE(source,channel, operation) "501 " + source + " " + channel + " " + operation + " :Is unknown mode char.\n"
-# define RPL_MODE(source,channel,modes,args) ":" + source + " MODE " + channel + " " + modes + " " + args
+# define RPL_MODE(source,channel,modes,args) ":" + source + " MODE #" + channel + " " + modes + " " + args
 # define RPL_PING(source,token) ":" + source + " PONG :" + token
 # define RPL_QUIT(source,message) ":" + source + " QUIT :Quit: " + message
 # define ERR_NOSUCHCHANNEL(source,channel) "403 " + source + " " + channel + " :No such channel"

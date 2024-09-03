@@ -69,7 +69,6 @@ void	Server::createSocket() {
 void	Server::_handleNewConnection() {
 	sockaddr_in addr = {};
 	socklen_t   size = sizeof(addr);
-	char			buf[] = ":ircserv 001 :Welcome to the IRC Network,!\n";
 	struct pollfd	new_client;
 
 	int new_fd = accept(_server_socket, (sockaddr *) &addr, &size);
@@ -92,9 +91,7 @@ void	Server::_handleNewConnection() {
 		_pfds.push_back(new_client);
 		_fd_count++;
 		std::cout << "New client is connected" << std::endl;
-		if (send(new_fd, buf, sizeof(buf), 0) == -1) {
-			perror("Error: send()");
-		}
+		
 	}
 }
 
@@ -123,7 +120,7 @@ void Server::_parse_cmd(std::string& message, int sender_fd) {
 	preset_cmds["JOIN"] = &Server::_join;
 	// preset_cmds["INVITE"] = &Server::_invite;
 	preset_cmds["KICK"] = &Server::_kick;
-	// preset_cmds["LEAVE"] = &Server::_leave;
+	// preset_cmds["PART"] = &Server::_leave;
 	preset_cmds["TOPIC"] = &Server::_topic;
 	preset_cmds["MODE"] = &Server::_mode;
 	preset_cmds["DM"] = &Server::_directMessage;
@@ -381,9 +378,17 @@ void	Server::_user(std::string& message, int sender_fd) {
         return;
     }
 	else {
-		if (_validateName(splitted_cmd[1], client->getFd(), "Username", 0)) {
-			client->setUsername(splitted_cmd[1]);
-		}
+		// if (_validateName(splitted_cmd[1], client->getFd(), "Username", 0)) {
+			// if (_clients.size() == 1)
+			// 	client->setUsername(splitted_cmd[1]);
+			// else
+					std::ostringstream oss;
+					oss << "user_" << client->getClientId();
+
+					std::string new_username = oss.str();
+				client->setUsername(new_username);
+			client->reply(RPL_WELCOME(client->getNickname()), sender_fd);
+		// }
 	}
 }
 
@@ -456,6 +461,7 @@ void	Server::_nick(std::string& message, int sender_fd) {
 		else {
 			// if (_validateName(splitted_cmd[1], client->getFd(), "Nickname", 0)) {
 			client->setNickname(new_nick);
+			client->reply(RPL_WELCOME(client->getNickname()), sender_fd);
 			// }
 		}
 	}
@@ -466,7 +472,7 @@ void	Server::_join(std::string& msg, int sender_fd) {
 	std::vector<std::string> splitted_cmd = _split(msg);
 	Client* client = *std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
 	
-	std::string channelName;
+	std::string channel_name;
 	std::string password = "";
 	std::vector<std::string> passwords;
 
@@ -492,18 +498,18 @@ void	Server::_join(std::string& msg, int sender_fd) {
 	std::istringstream ss(splitted_cmd[1]);
 
 	size_t i = 0;
-	while (std::getline(ss, channelName, ',')) {
+	while (std::getline(ss, channel_name, ',')) {
 		password = (i < passwords.size()) ? passwords[i] : "";
 		
-		if (channelName[0] == '#')
-			channelName = channelName.substr(1);
+		if (channel_name[0] == '#')
+			channel_name = channel_name.substr(1);
 
 		std::cout << "Channels: \n";
 		for (size_t i = 0; i < _channels.size(); i++) {
 			std::cout << _channels.at(i)->getName() << std::endl;
 		}
 	
-		std::vector<Channel*>::iterator it = std::find_if(_channels.begin(), _channels.end(), CompareChannelName(channelName));
+		std::vector<Channel*>::iterator it = std::find_if(_channels.begin(), _channels.end(), CompareChannelName(channel_name));
 
 		if (splitted_cmd.size() > 3 || splitted_cmd.size() < 2) {
 			sendResponse("Wrong number of parameters\n", sender_fd);
@@ -516,7 +522,7 @@ void	Server::_join(std::string& msg, int sender_fd) {
 			// if (password.size() > 0 && !_validateName(password, client->getFd(), "Channel password", 2))
 			// 	return;
 
-			Channel *new_channel = new Channel(channelName, client);
+			Channel *new_channel = new Channel(channel_name, client);
 			
 			if (password.size() > 0)
 				new_channel->setKey(password);
@@ -622,7 +628,7 @@ void	Server::_kick(std::string& message, int sender_fd) { // TODO: client is not
 		channel->removeClientFromChannel(*it_to_kick);
 		
 		// Remove channel from client's channels
-		std::map<Client*, std::vector<Channel*> >::iterator it_client_channel = _client_channel.find(client);
+		std::map<Client*, std::vector<Channel*> >::iterator it_client_channel = _client_channel.find((*it_to_kick));
 		if (it_client_channel != _client_channel.end()) {
 			std::vector<Channel*>& channels_to_remove = it_client_channel->second;
 			std::vector<Channel*>::iterator it_channel = std::find(channels_to_remove.begin(), channels_to_remove.end(), channel);
@@ -645,9 +651,29 @@ void	Server::_kick(std::string& message, int sender_fd) { // TODO: client is not
 
 void	Server::_capLs(std::string& message, int sender_fd) {
 	std::vector<std::string> splitted_cmd = _split(message);
-	// Client* client = *std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
+	Client* client = *std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
 
-	sendResponse("CAP LS:", sender_fd);
+    if (splitted_cmd.size() < 2) {
+        client->reply(ERR_NEEDMOREPARAMS(client->getNickname(), "CAP"), sender_fd);
+        return;
+    }
+
+	client->reply("CAP * LS :\n", sender_fd);
+
+    // std::string subcommand = splitted_cmd[1];
+    // if (subcommand == "LS") {
+    //     // List supported capabilities (none in this case)
+    //     client->reply("CAP * LS :\n", sender_fd);
+    // } else if (subcommand == "REQ") {
+    //     // Handle capability requests (none supported)
+    //     client->reply("CAP * NAK :" + message.substr(message.find(':') + 1) + "\n", sender_fd);
+    // } else if (subcommand == "END") {
+    //     // End capability negotiation
+    //     client->reply("CAP * END\n", sender_fd);
+    // } else {
+    //     // Unhandled subcommand
+    //     std::cerr << "Unhandled CAP subcommand: " << subcommand << std::endl;
+    // }
 }
 
 /*
@@ -768,6 +794,27 @@ void	Server::_mode(std::string& message, int sender_fd) {
 			// TODO: remove sendChanOpPrivsNeeded(client, channel);
 			// TODO: remove client from a channel  # !IMPORTANT
 			client->reply(ERR_CHANOPRIVSNEEDED(client->getNickname(), channel_name), sender_fd);
+
+			channel->broadcast(RPL_KICK(client->getPrefix(), channel->getName(), client->getNickname(), message)); // TODO: redo RPL, since it is not a kick
+			channel->removeClientFromChannel(client);
+			
+			// Remove channel from client's channels
+			std::map<Client*, std::vector<Channel*> >::iterator it_client_channel = _client_channel.find(client);
+			if (it_client_channel != _client_channel.end()) {
+				std::vector<Channel*>& channels_to_remove = it_client_channel->second;
+				std::vector<Channel*>::iterator it_channel = std::find(channels_to_remove.begin(), channels_to_remove.end(), channel);
+				
+				if (it_channel != channels.end()) {
+					// Found the channel, remove it
+					channels_to_remove.erase(it_channel);
+					// If the client is no longer in any channels, remove the client from the map
+					if (channels_to_remove.empty()) {
+						it_client_channel->first->setInChannel(false);
+						_client_channel.erase(it_client_channel);
+					}
+				}
+			}
+
 			return;
 		}
 
@@ -956,7 +1003,6 @@ void Server::_privmsg(std::string& message, int sender_fd) {
 		}
 
 		if (channel_it == channels.end()) {
-			std::cout << "we are fcking here\n";
 			client->reply(ERR_NOSUCHCHANNEL(client->getNickname(), target_name), sender_fd);
 			return;
 		}
@@ -976,6 +1022,62 @@ void Server::_privmsg(std::string& message, int sender_fd) {
 		}
 		channel->broadcast(RPL_PRIVMSG(client->getPrefix(), target_name, message), client);
         return;
+	}
+}
+
+
+// syntax: PART <channel_name>
+//		   PART <channel_name> :<mesage>
+
+void	Server::_leave(std::string& message, int sender_fd) {
+	std::vector<std::string> splitted_cmd = _split(message);
+	Client* client = *std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
+	std::string reply_message = "";
+
+	std::vector<Channel*> channels = _client_channel[client];
+
+	if (splitted_cmd.size() < 2) {
+		client->reply(ERR_NEEDMOREPARAMS(client->getNickname(), "PART"), sender_fd);
+		return;
+	} else if (splitted_cmd.size() >= 3) {
+		size_t pos = message.find(':');
+
+		if (pos != std::string::npos) {
+			reply_message = message.substr(pos);
+		}
+	}
+
+	std::string channel_name = splitted_cmd[1];
+	if (channel_name.at(0) == '#')
+		channel_name = channel_name.substr(1);
+
+	std::vector<Channel*>::iterator channel_it = find_if(channels.begin(), channels.end(), CompareChannelName(channel_name));
+
+	if (channel_it == channels.end()) {
+		client->reply(ERR_NOSUCHCHANNEL(client->getNickname(), channel_name), sender_fd);
+		return;
+	}
+
+	Channel* channel = *channel_it;
+
+	channel->broadcast(RPL_KICK(client->getPrefix(), channel->getName(), client->getNickname(), reply_message)); // TODO: add different RPL_KICK to be RPL_LEAVE
+	channel->removeClientFromChannel(client);
+	
+	// Remove channel from client's channels
+	std::map<Client*, std::vector<Channel*> >::iterator it_client_channel = _client_channel.find(client);
+	if (it_client_channel != _client_channel.end()) {
+		std::vector<Channel*>& channels_to_remove = it_client_channel->second;
+		std::vector<Channel*>::iterator it_channel = std::find(channels_to_remove.begin(), channels_to_remove.end(), channel);
+		
+		if (it_channel != channels.end()) {
+			// Found the channel, remove it
+			channels_to_remove.erase(it_channel);
+			// If the client is no longer in any channels, remove the client from the map
+			if (channels_to_remove.empty()) {
+				it_client_channel->first->setInChannel(false);
+				_client_channel.erase(it_client_channel);
+			}
+		}
 	}
 }
 

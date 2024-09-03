@@ -59,6 +59,8 @@ std::string Client::getPrefix() const {
     std::string username = _username.empty() ? "" : "!" + _username;
     std::string hostname = _hostname.empty() ? "" : "@" + _hostname;
 
+	std::cout << "Prefix: " << _nickname + username + hostname << std::endl;
+
     return _nickname + username + hostname;
 }
 
@@ -84,7 +86,7 @@ std::string Client::getNickname() const { return _nickname; }
 
 int Client::getClientId() const { return _client_id; }
 
-void Client::setUsername(std::string& str) { _username = str; }
+void Client::setUsername(std::string str) { _username = str; }
 
 std::string	Client::getUsername() const { return _username; };
 

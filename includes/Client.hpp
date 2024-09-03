@@ -27,7 +27,7 @@ public:
 	void		setAuth(bool value);
 	void		setNickname(std::string& str);
 	std::string	getNickname() const;
-	void		setUsername(std::string& str);
+	void		setUsername(std::string str);
 	std::string	getUsername() const;
 	void		setInChannel(bool value);
 	bool		getInChannel() const;
