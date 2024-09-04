@@ -118,7 +118,7 @@ void Server::_parse_cmd(std::string& message, int sender_fd) {
     preset_cmds["USER"] = &Server::_user;
 	preset_cmds["NICK"] = &Server::_nick;
 	preset_cmds["JOIN"] = &Server::_join;
-	// preset_cmds["INVITE"] = &Server::_invite;
+	preset_cmds["INVITE"] = &Server::_invite;
 	preset_cmds["KICK"] = &Server::_kick;
 	preset_cmds["PART"] = &Server::_leave;
 	preset_cmds["TOPIC"] = &Server::_topic;
@@ -192,20 +192,44 @@ void Server::_handleData(int sender_fd) {
 	}
 }
 
-/*
 
-// Redo it, but all checks probably will still be legal
+// The nickname to invite and the channel to invite him or her to; if no
+// 14:55     channel is given, the active channel will be used.
+// 14:55 
+// 14:55 Description:
+// 14:55 
+// 14:55     Invites the specified nick to a channel.
+// 14:55 
+// 14:55 Examples:
+// 14:55 
+// 14:55     /INVITE mike
+// 14:55     /INVITE bob #irssi
+
 
 
 void	Server::_invite(std::string& message, int sender_fd) {
 	std::vector<std::string> splitted_cmd = _split(message);
 	Client* client = *std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
-	Client* client_to_invite = *std::find_if(_clients.begin(), _clients.end(), CompareClientNick(splitted_cmd[1]));
-	if (splitted_cmd.size() != 2) {
-		sendResponse("Wrong number of parameters\n", sender_fd);
+	std::vector<Channel*> channels = _client_channel[client];
+	std::string channel_name = "";
+	std::string client_to_invite_name = "";
+
+	if (splitted_cmd.size() < 3) {
+		client->reply(ERR_NEEDMOREPARAMS(client->getNickname(), "INVITE"), sender_fd);
 		return;
 	}
-	std::vector<Client*>::iterator it = std::find_if(_clients.begin(), _clients.end(), CompareClientNick(splitted_cmd[1]));
+
+	client_to_invite_name = splitted_cmd[1];
+	channel_name = splitted_cmd[2];
+
+	std::vector<Client*>::iterator client_to_invite_it = std::find_if(_clients.begin(), _clients.end(), CompareClientNick(client_to_invite_name));
+
+	if (client_to_invite_it == _clients.end() || client->getClientId() == (*client_to_invite_it)->getClientId()) {
+		client->reply(ERR_NOSUCHNICK(client->getNickname(), client_to_invite_name), sender_fd);
+        return;
+	}
+
+	Client *client_to_invite = *client_to_invite_it;
 
 	//Check that user is allowed to invite
 	//Check that user to invite is present and is authorized
@@ -217,37 +241,36 @@ void	Server::_invite(std::string& message, int sender_fd) {
 		sendResponse("You are not connected to any channel\n", sender_fd);
 		return;
 	}
-	if (_client_channel[client]->getInviteOnly() && !_client_channel[client]->isOperator(*client)) {
-		sendResponse("You are not allowed to do that\n", sender_fd);
+	
+	std::vector<Channel*>::iterator channel_it = find_if(channels.begin(), channels.end(), CompareChannelName(channel_name));
+
+	if (channel_it == channels.end()) {
+		client->reply(ERR_NOTONCHANNEL(client->getNickname(), channel_name), sender_fd);
 		return;
 	}
 
-	if (client == client_to_invite) {
-		sendResponse("Wrong client nickname\n", sender_fd);
-		return;
-	}
-	if (it == _clients.end()) {
-		sendResponse("Client not found\n", sender_fd);
-		return;
-	}
+	Channel* channel = *channel_it;
+
 	if (!_checkAuth(*client_to_invite, sender_fd, 1))
 		return;
 	if (!validateUserCreds(*client_to_invite, sender_fd))
 		return;
-	if (it != _clients.end() && client_to_invite->getInChannel()) {
-		_client_channel[client_to_invite]->removeClientFromChannel(*client_to_invite);
-		sendResponse("You left the old channel\n", client_to_invite->getFd());
-	}
-	if (!_client_channel[client]->addClientToChannel(*client_to_invite, client_to_invite->getFd(), 1)) {
-		sendResponse("Unable to connect client to the channel.\n", sender_fd);
-		return;
-	}
-	_client_channel[client_to_invite] = _client_channel[client]; // TODO: client doesn't see if person to invite is connected or no.
-	sendResponse("You have been invited to the channel\n", client_to_invite->getFd());
-	sendResponse("Client has been invited to the channel\n", sender_fd);
-}
+	
+	std::vector<Client*> channel_clients = channel->getClients();
+	std::vector<Client*>::iterator client_on_channel_it = find(channel_clients.begin(), channel_clients.end(), client_to_invite);
 
-*/
+	// if (client_on_channel_it != channel_clients.end()) {
+	// 	// TODO: user is already on the channel
+	// }
+	
+	// if (!channel->addClientToChannel(client_to_invite, client_to_invite->getFd(), 1)) {
+	// 	sendResponse("Unable to connect client to the channel.\n", sender_fd);
+	// 	return;
+	// }
+	// _client_channel[client_to_invite] = _client_channel[client]; // TODO: client doesn't see if person to invite is connected or no.
+	// sendResponse("You have been invited to the channel\n", client_to_invite->getFd());
+	// sendResponse("Client has been invited to the channel\n", sender_fd);
+}
 
 void Server::sendPrivateMessage(Client& sender, Client& receiver, const std::string& message) {
 	if (sender != receiver) {
@@ -778,7 +801,7 @@ void	Server::_mode(std::string& message, int sender_fd) {
 			// TODO: remove client from a channel  # !IMPORTANT
 			client->reply(ERR_CHANOPRIVSNEEDED(client->getNickname(), channel_name), sender_fd);
 
-			channel->broadcast(RPL_KICK(client->getPrefix(), channel->getName(), client->getNickname(), message)); // TODO: redo RPL, since it is not a kick
+			channel->broadcast(RPL_KICK(client->getPrefix(), channel->getName(), "System", message)); // TODO: redo RPL, since it is not a kick
 			channel->removeClientFromChannel(client);
 			
 			// Remove channel from client's channels
@@ -1044,7 +1067,7 @@ void	Server::_leave(std::string& message, int sender_fd) {
 	Channel* channel = *channel_it;
 
 	client->reply("PART #" + channel_name + " :" + client->getNickname() + "\n", client->getFd());
-	channel->broadcast(RPL_KICK(client->getPrefix(), channel->getName(), client->getNickname(), reply_message)); // TODO: add different RPL_KICK to be RPL_LEAVE
+	channel->broadcast(RPL_LEAVE(client->getPrefix(), channel->getName(), client->getNickname()), client); // TODO: add different RPL_KICK to be RPL_LEAVE
 	channel->removeClientFromChannel(client);
 	
 	// Remove channel from client's channels
