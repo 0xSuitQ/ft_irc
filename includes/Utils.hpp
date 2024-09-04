@@ -29,6 +29,7 @@
 # define RPL_MODE(source,channel,modes,args) ":" + source + " MODE #" + channel + " " + modes + " " + args
 # define RPL_PING(source,token) ":" + source + " PONG :" + token
 # define RPL_KICK(source,channel,target,reason) ":" + source + " KICK #" + channel + " " + target + " :" + reason
+# define RPL_LEAVE(source,channel,target) ":" + source + " PART #" + channel + " :" + target
 # define RPL_NAMREPLY(source,channel,users) "353 " + source + " = #" + channel + " :" + users
 # define RPL_ENDOFNAMES(source,channel) "366 " + source + " " + channel + " :End of /NAMES list."
 # define RPL_JOIN(source,channel) ":" + source + " JOIN :#" + channel
