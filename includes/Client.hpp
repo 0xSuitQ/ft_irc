@@ -8,6 +8,7 @@
 # include <cstdio>
 # include <unistd.h>
 # include <sstream>
+# include <vector>
 
 class Client {
 public:
@@ -36,6 +37,9 @@ public:
 	std::string	getPrefix() const;
 	void		write(const std::string& message, int fd) const;
 	void		reply(const std::string& reply, int fd);
+	
+	std::vector<std::string>&	getInvitedChannels();
+	void						addInvitedChannel(std::string& channel_name);
 
 private:
 	static int	_next_id;
@@ -47,6 +51,8 @@ private:
 	std::string	_nickname;
 	std::string	_username;
 	std::string _hostname;
+
+	std::vector<std::string>	_invited_channels;
 	
 };
 

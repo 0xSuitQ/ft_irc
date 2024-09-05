@@ -90,8 +90,19 @@ bool Channel::addClientToChannel(Client* client, int fd, bool invited) {
 	// 	return false;
 	// }
 	if (modes.invite_only && !invited) {
-		sendResponse("Could not connect to the channel. The channel is invite-only\n", fd);
+		client->reply(ERR_INVITEONLYCHAN(client->getNickname(), this->getName()), fd);
 		return false;
+	} else if (modes.invite_only && invited) {
+		std::vector<std::string>& channels_invited = client->getInvitedChannels();
+		std::vector<std::string>::iterator channel_invited_it = find(channels_invited.begin(), channels_invited.end(), this->getName());
+		if (channel_invited_it == channels_invited.end()) {
+			client->reply(ERR_INVITEONLYCHAN(client->getNickname(), this->getName()), fd);
+			return false;
+		} else {
+            // Erase the channel name from the invited channels list
+            channels_invited.erase(channel_invited_it);
+        }
+		
 	}
 	// else if (modes.has_key && pass != _key) { // Mb remove it since check it from outer scope
 	// 	sendResponse("Wrong password to the channel\n", fd);
