@@ -221,6 +221,9 @@ void	Server::_invite(std::string& message, int sender_fd) {
 
 	client_to_invite_name = splitted_cmd[1];
 	channel_name = splitted_cmd[2];
+	
+	if (channel_name.at(0) == '#')
+		channel_name = channel_name.substr(1);
 
 	std::vector<Client*>::iterator client_to_invite_it = std::find_if(_clients.begin(), _clients.end(), CompareClientNick(client_to_invite_name));
 
@@ -259,9 +262,15 @@ void	Server::_invite(std::string& message, int sender_fd) {
 	std::vector<Client*> channel_clients = channel->getClients();
 	std::vector<Client*>::iterator client_on_channel_it = find(channel_clients.begin(), channel_clients.end(), client_to_invite);
 
-	// if (client_on_channel_it != channel_clients.end()) {
-	// 	// TODO: user is already on the channel
-	// }
+	if (client_on_channel_it != channel_clients.end()) {
+		client->reply(ERR_USERONCHANNEL(client->getNickname(), client_to_invite_name, channel_name), sender_fd);
+		return;
+	}
+
+	client_to_invite->addInvitedChannel(channel_name);
+	std::string invite_message = ":" + client->getPrefix() + " INVITE " + client_to_invite->getNickname() + " :" + channel_name + "\n";
+    client_to_invite->reply(invite_message, client_to_invite->getFd());
+    client->reply(invite_message, sender_fd);
 	
 	// if (!channel->addClientToChannel(client_to_invite, client_to_invite->getFd(), 1)) {
 	// 	sendResponse("Unable to connect client to the channel.\n", sender_fd);
@@ -564,13 +573,23 @@ void	Server::_join(std::string& msg, int sender_fd) {
 				}
 			}
 
-			if ((*it)->getHasKey()) {
+			if (!(*it)->getInviteOnly() && (*it)->getHasKey()) {
 				if (!_validateChannelPass(password, *it, sender_fd, client))
 					return;
 			}
 
-			if (!(*it)->addClientToChannel(client, sender_fd, 0))
-				return;
+			// Checking if client trying to join the channel through invitation
+			std::vector<std::string> client_invites = client->getInvitedChannels();
+			std::vector<std::string>::iterator client_invite_it = find(client_invites.begin(), client_invites.end(), channel_name);
+
+			if (client_invite_it != client_invites.end()) {
+				if (!(*it)->addClientToChannel(client, sender_fd, 1))
+					return;
+			} else {
+				if (!(*it)->addClientToChannel(client, sender_fd, 0))
+					return;
+			}
+			
 			_client_channel[client].push_back(*it);
 
 			if ((*it)->getHasTopic())

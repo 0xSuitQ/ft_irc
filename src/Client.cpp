@@ -76,6 +76,14 @@ void Client::reply(const std::string& reply, int fd) {
     this->write(":" + getPrefix() + " " + reply, fd);
 }
 
+std::vector<std::string>&	Client::getInvitedChannels() {
+	return _invited_channels;
+}
+
+void Client::addInvitedChannel(std::string& channel_name) {
+	_invited_channels.push_back(channel_name);
+}
+
 bool Client::getAuth() const { return _authenticated; }
 
 void Client::setAuth(bool value) { _authenticated = value; }
