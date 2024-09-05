@@ -25,7 +25,7 @@ public:
 	void	acceptClient();
 	void	setPass(std::string pass);
 	void	setPort(int port);
-	void	sendPrivateMessage(Client& sender, Client& receiver, const std::string& message);
+	void	sendPrivateMessage(Client* sender, Client* receiver, const std::string& message);
 
 	class SocketCreationException : public std::exception {
 		public:
