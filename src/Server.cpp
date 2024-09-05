@@ -281,13 +281,6 @@ void	Server::_invite(std::string& message, int sender_fd) {
 	// sendResponse("Client has been invited to the channel\n", sender_fd);
 }
 
-void Server::sendPrivateMessage(Client& sender, Client& receiver, const std::string& message) {
-	if (sender != receiver) {
-		receiver.receiveMessage(sender.getNickname());
-		receiver.receiveMessage(message);
-	}
-}
-
 void Server::_removeClient(int fd) {
 	// 
 	// Remove from _clients vector
@@ -1039,17 +1032,25 @@ void Server::_privmsg(std::string& message, int sender_fd) {
 		}
 	} else {
 		std::vector<Client*>::iterator target_client_it = std::find_if(_clients.begin(), _clients.end(), CompareClientNick(target_name));
-		Channel *channel = *find_if(channels.begin(), channels.end(), CompareChannelName(target_name));
 
 		if (target_client_it == _clients.end()) {
         	client->reply(ERR_NOSUCHNICK(client->getNickname(), target_name), sender_fd);
 			return;
 		}
-		channel->broadcast(RPL_PRIVMSG(client->getPrefix(), target_name, message), client);
-        return;
+
+		Client* target_client = *target_client_it;
+	
+		// sendPrivateMessage(client, target_client, message);	
+		target_client->reply(RPL_PRIVMSG(client->getPrefix(), target_name, message), target_client->getFd());
 	}
 }
 
+void Server::sendPrivateMessage(Client* sender, Client* receiver, const std::string& message) {
+	if (sender != receiver) {
+		receiver->receiveMessage(sender->getNickname());
+		receiver->receiveMessage(message);
+	}
+}
 
 // syntax: PART <channel_name>
 //		   PART <channel_name> :<mesage>
