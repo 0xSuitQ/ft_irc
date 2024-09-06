@@ -1,11 +1,22 @@
 #include "Server.hpp"
 #include "Channel.hpp"
 
-// TODO: Cleaning client after disconecting
-// TODO: Add HELP command to list all commands
-// TODO: Orthodox canonical form of the classes
+// Server* Server::_instance = NULL;
 
-Server::Server(char **av) {
+// volatile sig_atomic_t g_shutdownRequested = 0;
+
+Server::Server(char **av) : _running(true) {
+
+	// struct sigaction sa;
+    // sa.sa_handler = _signalHandler;
+    // sigemptyset(&sa.sa_mask);
+    // sa.sa_flags = 0;
+    // if (sigaction(SIGINT, &sa, NULL) == -1) {
+    //     perror("sigaction");
+    //     exit(1);
+    // }
+
+
 	this->_server_socket = -1;
 	this->_port = -1;
 	try {
@@ -18,10 +29,17 @@ Server::Server(char **av) {
         return;
     }
 	setPass(av[2]);
+	// _instance = this;
+	// signal(SIGINT, _signalHandler);
+
 	createSocket();
 }
 
 Server::~Server() {
+	shutdown();
+}
+
+void Server::_cleanup() {
 	if (_server_socket != -1)
 		close(_server_socket);
 	
@@ -45,6 +63,20 @@ Server::~Server() {
     //     delete it->first; // Delete the Client object
     // }
     _client_channel.clear();
+	close(_server_socket);
+}
+
+// void Server::_signalHandler(int signum) {
+// 	(void)signum;
+// 	g_shutdownRequested = 1;
+// }
+
+void Server::shutdown() {
+	if (!_running) {
+        return;  // Prevent multiple shutdowns
+    }
+	_running = false;
+	_cleanup();
 }
 
 void	Server::setPass(std::string pass) {
@@ -107,6 +139,7 @@ void	Server::_handleNewConnection() {
 		Client *client = new Client(new_fd, hostname);
 
 		_clients.push_back(client);
+		new_client.revents = 0;
 		new_client.fd = new_fd;
 		new_client.events = POLLIN;
 		_pfds.push_back(new_client);
@@ -117,20 +150,37 @@ void	Server::_handleNewConnection() {
 }
 
 void Server::_mainLoop() {
-	for (;;) {
+	while(_running){ //&& !g_shutdownRequested) {
 		int poll_count = poll(&_pfds[0], _pfds.size(), -1);
-		if (poll_count == -1)
+		if (poll_count == -1) {
+			// if (errno == EINTR) {
+            //         continue; // Interrupted system call, likely due to SIGINT
+			// }
 			throw PollCountException();
+		}
+
+		// if (g_shutdownRequested) {
+        //     break;
+        // }
+
+		// std::vector<int> fds_to_remove;
 
 		for (size_t i = 0; i < _pfds.size(); i++) {
 			if (_pfds[i].revents & POLLIN) {
 				if (_pfds[i].fd == _server_socket)
 					_handleNewConnection();
-				else
+				else {
 					_handleData(_pfds[i].fd);
+				}
 			}
 		}
+
+		// for (std::set<int>::iterator fd_it = _fds_to_remove.begin(); fd_it !=_fds_to_remove.end(); ++fd_it) {
+        //     _pfds.erase(std::remove_if(_pfds.begin(), _pfds.end(), ComparePollFd((*fd_it))), _pfds.end());
+        // }
+        // _fds_to_remove.clear();
 	}
+	shutdown();
 }
 
 void Server::_parse_cmd(std::string& message, int sender_fd) {
@@ -222,20 +272,34 @@ void Server::_handleData(int sender_fd) {
 	}
 }
 
+void Server::_removeClient(int fd) {
+	std::vector<Client*>::iterator client_it = std::find_if(_clients.begin(), _clients.end(), CompareClientFd(fd));
+    if (client_it == _clients.end()) {
+        // Client not found, return early
+        return;
+    }
+	
+    Client* client = *client_it;
+	client->is_valid = false;
+	std::vector<Channel*> channels = _client_channel[client];
 
-// The nickname to invite and the channel to invite him or her to; if no
-// 14:55     channel is given, the active channel will be used.
-// 14:55 
-// 14:55 Description:
-// 14:55 
-// 14:55     Invites the specified nick to a channel.
-// 14:55 
-// 14:55 Examples:
-// 14:55 
-// 14:55     /INVITE mike
-// 14:55     /INVITE bob #irssi
+	for (std::vector<Channel*>::iterator it = channels.begin(); it != channels.end(); ++it) {
+		(*it)->removeClientFromChannel(client, 1);
+	}
 
+	_client_channel.erase(client);
+	// Remove from _clients vector
+	_clients.erase(client_it);
+	// Remove from _pfds vector
+	_pfds.erase(std::remove_if(_pfds.begin(), _pfds.end(), ComparePollFd(fd)), _pfds.end());
+	// _fds_to_remove.insert(fd);
 
+	close(fd);
+	_fd_count--;
+
+	// delete client;
+	// client = NULL;
+}
 
 void	Server::_invite(std::string& message, int sender_fd) {
 	std::vector<std::string> splitted_cmd = _split(message);
@@ -309,34 +373,6 @@ void	Server::_invite(std::string& message, int sender_fd) {
 	// _client_channel[client_to_invite] = _client_channel[client]; // TODO: client doesn't see if person to invite is connected or no.
 	// sendResponse("You have been invited to the channel\n", client_to_invite->getFd());
 	// sendResponse("Client has been invited to the channel\n", sender_fd);
-}
-
-void Server::_removeClient(int fd) {
-	std::vector<Client*>::iterator client_it = std::find_if(_clients.begin(), _clients.end(), CompareClientFd(fd));
-    if (client_it == _clients.end()) {
-        // Client not found, return early
-        return;
-    }
-	
-    Client* client = *client_it;
-	client->is_valid = false;
-	std::vector<Channel*> channels = _client_channel[client];
-
-	for (std::vector<Channel*>::iterator it = channels.begin(); it != channels.end(); ++it) {
-		(*it)->removeClientFromChannel(client, 1);
-	}
-
-	_client_channel.erase(client);
-	// Remove from _clients vector
-	_clients.erase(client_it);
-	// Remove from _pfds vector
-	_pfds.erase(std::remove_if(_pfds.begin(), _pfds.end(), ComparePollFd(fd)), _pfds.end());
-
-	close(fd);
-	_fd_count--;
-
-	// delete client;
-	// client = NULL;
 }
 
 std::vector<std::string> Server::_split(std::string& str) {

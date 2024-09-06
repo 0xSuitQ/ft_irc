@@ -10,8 +10,10 @@
 # include <fcntl.h>
 # include <sstream>
 # include <map>
+# include <set>
 # include <cerrno>
 # include <netdb.h>
+# include <signal.h>
 # include "Client.hpp"
 # include "Channel.hpp"
 # include "Utils.hpp"
@@ -21,6 +23,7 @@ public:
 	Server(char **av);
 	~Server();
 
+	void	shutdown();
 	void	createSocket();
 	void	acceptClient();
 	void	setPass(std::string pass);
@@ -80,17 +83,23 @@ private:
 	int					_server_socket;
 	int					_port;
 	int					_fd_count;
+	bool				_running;
 	std::string			_server_pass;
+	// static Server*		_instance;
 
 	std::vector<struct pollfd>		_pfds;
 	std::vector<Client*>			_clients;
 	std::vector<Channel*>			_channels;
+	std::set<int>					_fds_to_remove;
 	std::map<Client*, std::vector<Channel*> >		_client_channel;
+
+	// static void	_signalHandler(int signum);
 
 	void	_mainLoop();
 	void	_handleNewConnection();
 	void	_handleData(int sender_fd);
 	void	_removeClient(int fd);
+	void	_cleanup();
 	void	_parse_cmd(std::string& message, int sender_fd);
 	bool	_validateName(std::string& namem, int fd, std::string target, int flag) const;
 	bool	_checkAuth(Client& client, int fd, int flag);
