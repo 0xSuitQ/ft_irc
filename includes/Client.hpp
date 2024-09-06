@@ -21,6 +21,8 @@ public:
 	bool operator!=(const Client& other) const;
 	bool operator<(const Client& other) const;
 
+	bool		is_valid;
+
 	const int	&getFd() const;
 	void		appendToBuffer(const char* data, size_t len);
 	bool		getCompleteMessage(std::string& message);

@@ -24,6 +24,27 @@ Server::Server(char **av) {
 Server::~Server() {
 	if (_server_socket != -1)
 		close(_server_socket);
+	
+	std::vector<int> client_fds;
+    for (std::vector<Client*>::iterator clients_it = _clients.begin(); clients_it != _clients.end(); ++clients_it) {
+        client_fds.push_back((*clients_it)->getFd());
+    }
+
+	// std::vector<Client*>::iterator clients_it = _clients.begin();
+	for (std::vector<int>::iterator fd_it = client_fds.begin(); fd_it != client_fds.end(); ++fd_it) {
+        _removeClient(*fd_it);
+
+		int client_fd = *fd_it;
+		Client* client = *find_if(_clients.begin(), _clients.end(), CompareClientFd(client_fd));
+		delete(client);
+    }
+	for (std::vector<Channel*>::iterator channels_it = _channels.begin(); channels_it != _channels.end(); ++channels_it) {
+		delete (*channels_it);
+	}
+	// for (std::map<Client*, std::vector<Channel*> >::iterator it = _client_channel.begin(); it != _client_channel.end(); ++it) {
+    //     delete it->first; // Delete the Client object
+    // }
+    _client_channel.clear();
 }
 
 void	Server::setPass(std::string pass) {
@@ -164,7 +185,16 @@ void Server::_handleData(int sender_fd) {
 	if (nbytes > 0) {
 		buf[nbytes] = '\0';
 
-		Client* client = *std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
+		std::vector<Client*>::iterator client_it = std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
+        if (client_it == _clients.end()) {
+            return;
+        }
+
+        Client* client = *client_it;
+		if (!client->is_valid) {
+            return; // Skip processing if the client is invalid
+        }
+
 		client->appendToBuffer(buf, nbytes); // Filling up the buffer till it has \n in it
 		std::string message;
 		while (client->getCompleteMessage(message)) { // Is executed if only \n was found in the received data
@@ -282,8 +312,14 @@ void	Server::_invite(std::string& message, int sender_fd) {
 }
 
 void Server::_removeClient(int fd) {
+	std::vector<Client*>::iterator client_it = std::find_if(_clients.begin(), _clients.end(), CompareClientFd(fd));
+    if (client_it == _clients.end()) {
+        // Client not found, return early
+        return;
+    }
 	
-	Client* client = *std::find_if(_clients.begin(), _clients.end(), CompareClientFd(fd));
+    Client* client = *client_it;
+	client->is_valid = false;
 	std::vector<Channel*> channels = _client_channel[client];
 
 	for (std::vector<Channel*>::iterator it = channels.begin(); it != channels.end(); ++it) {
@@ -292,14 +328,15 @@ void Server::_removeClient(int fd) {
 
 	_client_channel.erase(client);
 	// Remove from _clients vector
-	_clients.erase(std::remove_if(_clients.begin(), _clients.end(), CompareClientFd(fd)), _clients.end());
+	_clients.erase(client_it);
 	// Remove from _pfds vector
 	_pfds.erase(std::remove_if(_pfds.begin(), _pfds.end(), ComparePollFd(fd)), _pfds.end());
 
 	close(fd);
 	_fd_count--;
 
-	delete client;
+	// delete client;
+	// client = NULL;
 }
 
 std::vector<std::string> Server::_split(std::string& str) {

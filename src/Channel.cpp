@@ -28,7 +28,11 @@ Channel::Channel(const std::string name, Client* client) {
 	this->broadcast(RPL_JOIN(client->getPrefix(), this->getName()));
 }
 
-Channel::~Channel() {}
+Channel::~Channel() {
+	// for (std::vector<Client*>::iterator clients_it = _clients.begin(); clients_it != _clients.end(); ++clients_it) {
+	// 	removeClientFromChannel((*clients_it), 1);
+	// }
+}
 
 void Channel::broadcastMessage(Client* client, const std::string& message) {
 	std::string time = getCurrentTime();
