@@ -282,15 +282,24 @@ void	Server::_invite(std::string& message, int sender_fd) {
 }
 
 void Server::_removeClient(int fd) {
-	// 
+	
+	Client* client = *std::find_if(_clients.begin(), _clients.end(), CompareClientFd(fd));
+	std::vector<Channel*> channels = _client_channel[client];
+
+	for (std::vector<Channel*>::iterator it = channels.begin(); it != channels.end(); ++it) {
+		(*it)->removeClientFromChannel(client, 1);
+	}
+
+	_client_channel.erase(client);
 	// Remove from _clients vector
 	_clients.erase(std::remove_if(_clients.begin(), _clients.end(), CompareClientFd(fd)), _clients.end());
-
 	// Remove from _pfds vector
 	_pfds.erase(std::remove_if(_pfds.begin(), _pfds.end(), ComparePollFd(fd)), _pfds.end());
 
 	close(fd);
 	_fd_count--;
+
+	delete client;
 }
 
 std::vector<std::string> Server::_split(std::string& str) {
@@ -659,7 +668,7 @@ void	Server::_kick(std::string& message, int sender_fd) { // TODO: client is not
 
 		// client->reply(RPL_PART(client->getNickname(), channel_name, message), sender_fd);
 		channel->broadcast(RPL_KICK(client->getPrefix(), channel->getName(), client_to_kick, message));
-		channel->removeClientFromChannel(*it_to_kick);
+		channel->removeClientFromChannel(*it_to_kick, 1);
 		
 		// Remove channel from client's channels
 		std::map<Client*, std::vector<Channel*> >::iterator it_client_channel = _client_channel.find((*it_to_kick));
@@ -814,7 +823,7 @@ void	Server::_mode(std::string& message, int sender_fd) {
 			client->reply(ERR_CHANOPRIVSNEEDED(client->getNickname(), channel_name), sender_fd);
 
 			channel->broadcast(RPL_KICK(client->getPrefix(), channel->getName(), "System", message)); // TODO: redo RPL, since it is not a kick
-			channel->removeClientFromChannel(client);
+			channel->removeClientFromChannel(client, 0);
 			
 			// Remove channel from client's channels
 			std::map<Client*, std::vector<Channel*> >::iterator it_client_channel = _client_channel.find(client);
@@ -1088,7 +1097,7 @@ void	Server::_leave(std::string& message, int sender_fd) {
 
 	client->reply("PART #" + channel_name + " :" + client->getNickname() + "\n", client->getFd());
 	channel->broadcast(RPL_LEAVE(client->getPrefix(), channel->getName(), client->getNickname()), client); // TODO: add different RPL_KICK to be RPL_LEAVE
-	channel->removeClientFromChannel(client);
+	channel->removeClientFromChannel(client, 0);
 	
 	// Remove channel from client's channels
 	std::map<Client*, std::vector<Channel*> >::iterator it_client_channel = _client_channel.find(client);

@@ -25,7 +25,7 @@ public:
 	void	setOperator(Client* giver, Client* receiver, int fd);
 	void	setHasTopic(bool value);
 	bool	isOperator(Client* client);
-	void	removeClientFromChannel(Client* client);
+	void	removeClientFromChannel(Client* client, bool flag);
 	void	broadcastMessage(Client* client, const std::string& message);
 	void	broadcast(const std::string& message);
 	void	broadcast(const std::string& message, Client* exclude);

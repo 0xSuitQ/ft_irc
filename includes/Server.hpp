@@ -86,7 +86,6 @@ private:
 	std::vector<Client*>			_clients;
 	std::vector<Channel*>			_channels;
 	std::map<Client*, std::vector<Channel*> >		_client_channel;
-	// std::map<Client*, Channel*>		_client_channel;
 
 	void	_mainLoop();
 	void	_handleNewConnection();

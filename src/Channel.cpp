@@ -124,10 +124,10 @@ bool Channel::addClientToChannel(Client* client, int fd, bool invited) {
 	}
 }
 
-void Channel::removeClientFromChannel(Client* client) { // TODO: remove from ops
-	// if (this->isOperator(client)) {
-	// 	_operators.erase(std::remove(_operators.begin(), _operators.end(), client), _operators.end());
-	// }
+void Channel::removeClientFromChannel(Client* client, bool flag) { // flag == 0 - don't remove from operators
+	if (flag == 1) {
+		_operators.erase(std::remove(_operators.begin(), _operators.end(), client), _operators.end());
+	}
 	_clients.erase(std::remove(_clients.begin(), _clients.end(), client), _clients.end());
 	_clients_count--;
 	client->setInChannel(false);
