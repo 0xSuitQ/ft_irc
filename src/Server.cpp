@@ -1,11 +1,22 @@
 #include "Server.hpp"
 #include "Channel.hpp"
 
-// TODO: Cleaning client after disconecting
-// TODO: Add HELP command to list all commands
-// TODO: Orthodox canonical form of the classes
+// Server* Server::_instance = NULL;
 
-Server::Server(char **av) {
+// volatile sig_atomic_t g_shutdownRequested = 0;
+
+Server::Server(char **av) : _running(true) {
+
+	// struct sigaction sa;
+    // sa.sa_handler = _signalHandler;
+    // sigemptyset(&sa.sa_mask);
+    // sa.sa_flags = 0;
+    // if (sigaction(SIGINT, &sa, NULL) == -1) {
+    //     perror("sigaction");
+    //     exit(1);
+    // }
+
+
 	this->_server_socket = -1;
 	this->_port = -1;
 	try {
@@ -18,12 +29,54 @@ Server::Server(char **av) {
         return;
     }
 	setPass(av[2]);
+	// _instance = this;
+	// signal(SIGINT, _signalHandler);
+
 	createSocket();
 }
 
 Server::~Server() {
+	shutdown();
+}
+
+void Server::_cleanup() {
 	if (_server_socket != -1)
 		close(_server_socket);
+	
+	std::vector<int> client_fds;
+    for (std::vector<Client*>::iterator clients_it = _clients.begin(); clients_it != _clients.end(); ++clients_it) {
+        client_fds.push_back((*clients_it)->getFd());
+    }
+
+	// std::vector<Client*>::iterator clients_it = _clients.begin();
+	for (std::vector<int>::iterator fd_it = client_fds.begin(); fd_it != client_fds.end(); ++fd_it) {
+        _removeClient(*fd_it);
+
+		int client_fd = *fd_it;
+		Client* client = *find_if(_clients.begin(), _clients.end(), CompareClientFd(client_fd));
+		delete(client);
+    }
+	for (std::vector<Channel*>::iterator channels_it = _channels.begin(); channels_it != _channels.end(); ++channels_it) {
+		delete (*channels_it);
+	}
+	// for (std::map<Client*, std::vector<Channel*> >::iterator it = _client_channel.begin(); it != _client_channel.end(); ++it) {
+    //     delete it->first; // Delete the Client object
+    // }
+    _client_channel.clear();
+	close(_server_socket);
+}
+
+// void Server::_signalHandler(int signum) {
+// 	(void)signum;
+// 	g_shutdownRequested = 1;
+// }
+
+void Server::shutdown() {
+	if (!_running) {
+        return;  // Prevent multiple shutdowns
+    }
+	_running = false;
+	_cleanup();
 }
 
 void	Server::setPass(std::string pass) {
@@ -86,6 +139,7 @@ void	Server::_handleNewConnection() {
 		Client *client = new Client(new_fd, hostname);
 
 		_clients.push_back(client);
+		new_client.revents = 0;
 		new_client.fd = new_fd;
 		new_client.events = POLLIN;
 		_pfds.push_back(new_client);
@@ -96,20 +150,37 @@ void	Server::_handleNewConnection() {
 }
 
 void Server::_mainLoop() {
-	for (;;) {
+	while(_running){ //&& !g_shutdownRequested) {
 		int poll_count = poll(&_pfds[0], _pfds.size(), -1);
-		if (poll_count == -1)
+		if (poll_count == -1) {
+			// if (errno == EINTR) {
+            //         continue; // Interrupted system call, likely due to SIGINT
+			// }
 			throw PollCountException();
+		}
+
+		// if (g_shutdownRequested) {
+        //     break;
+        // }
+
+		// std::vector<int> fds_to_remove;
 
 		for (size_t i = 0; i < _pfds.size(); i++) {
 			if (_pfds[i].revents & POLLIN) {
 				if (_pfds[i].fd == _server_socket)
 					_handleNewConnection();
-				else
+				else {
 					_handleData(_pfds[i].fd);
+				}
 			}
 		}
+
+		// for (std::set<int>::iterator fd_it = _fds_to_remove.begin(); fd_it !=_fds_to_remove.end(); ++fd_it) {
+        //     _pfds.erase(std::remove_if(_pfds.begin(), _pfds.end(), ComparePollFd((*fd_it))), _pfds.end());
+        // }
+        // _fds_to_remove.clear();
 	}
+	shutdown();
 }
 
 void Server::_parse_cmd(std::string& message, int sender_fd) {
@@ -164,7 +235,16 @@ void Server::_handleData(int sender_fd) {
 	if (nbytes > 0) {
 		buf[nbytes] = '\0';
 
-		Client* client = *std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
+		std::vector<Client*>::iterator client_it = std::find_if(_clients.begin(), _clients.end(), CompareClientFd(sender_fd));
+        if (client_it == _clients.end()) {
+            return;
+        }
+
+        Client* client = *client_it;
+		if (!client->is_valid) {
+            return; // Skip processing if the client is invalid
+        }
+
 		client->appendToBuffer(buf, nbytes); // Filling up the buffer till it has \n in it
 		std::string message;
 		while (client->getCompleteMessage(message)) { // Is executed if only \n was found in the received data
@@ -192,20 +272,34 @@ void Server::_handleData(int sender_fd) {
 	}
 }
 
+void Server::_removeClient(int fd) {
+	std::vector<Client*>::iterator client_it = std::find_if(_clients.begin(), _clients.end(), CompareClientFd(fd));
+    if (client_it == _clients.end()) {
+        // Client not found, return early
+        return;
+    }
+	
+    Client* client = *client_it;
+	client->is_valid = false;
+	std::vector<Channel*> channels = _client_channel[client];
 
-// The nickname to invite and the channel to invite him or her to; if no
-// 14:55     channel is given, the active channel will be used.
-// 14:55 
-// 14:55 Description:
-// 14:55 
-// 14:55     Invites the specified nick to a channel.
-// 14:55 
-// 14:55 Examples:
-// 14:55 
-// 14:55     /INVITE mike
-// 14:55     /INVITE bob #irssi
+	for (std::vector<Channel*>::iterator it = channels.begin(); it != channels.end(); ++it) {
+		(*it)->removeClientFromChannel(client, 1);
+	}
 
+	_client_channel.erase(client);
+	// Remove from _clients vector
+	_clients.erase(client_it);
+	// Remove from _pfds vector
+	_pfds.erase(std::remove_if(_pfds.begin(), _pfds.end(), ComparePollFd(fd)), _pfds.end());
+	// _fds_to_remove.insert(fd);
 
+	close(fd);
+	_fd_count--;
+
+	// delete client;
+	// client = NULL;
+}
 
 void	Server::_invite(std::string& message, int sender_fd) {
 	std::vector<std::string> splitted_cmd = _split(message);
@@ -279,18 +373,6 @@ void	Server::_invite(std::string& message, int sender_fd) {
 	// _client_channel[client_to_invite] = _client_channel[client]; // TODO: client doesn't see if person to invite is connected or no.
 	// sendResponse("You have been invited to the channel\n", client_to_invite->getFd());
 	// sendResponse("Client has been invited to the channel\n", sender_fd);
-}
-
-void Server::_removeClient(int fd) {
-	// 
-	// Remove from _clients vector
-	_clients.erase(std::remove_if(_clients.begin(), _clients.end(), CompareClientFd(fd)), _clients.end());
-
-	// Remove from _pfds vector
-	_pfds.erase(std::remove_if(_pfds.begin(), _pfds.end(), ComparePollFd(fd)), _pfds.end());
-
-	close(fd);
-	_fd_count--;
 }
 
 std::vector<std::string> Server::_split(std::string& str) {
@@ -659,7 +741,7 @@ void	Server::_kick(std::string& message, int sender_fd) { // TODO: client is not
 
 		// client->reply(RPL_PART(client->getNickname(), channel_name, message), sender_fd);
 		channel->broadcast(RPL_KICK(client->getPrefix(), channel->getName(), client_to_kick, message));
-		channel->removeClientFromChannel(*it_to_kick);
+		channel->removeClientFromChannel(*it_to_kick, 1);
 		
 		// Remove channel from client's channels
 		std::map<Client*, std::vector<Channel*> >::iterator it_client_channel = _client_channel.find((*it_to_kick));
@@ -814,7 +896,7 @@ void	Server::_mode(std::string& message, int sender_fd) {
 			client->reply(ERR_CHANOPRIVSNEEDED(client->getNickname(), channel_name), sender_fd);
 
 			channel->broadcast(RPL_KICK(client->getPrefix(), channel->getName(), "System", message)); // TODO: redo RPL, since it is not a kick
-			channel->removeClientFromChannel(client);
+			channel->removeClientFromChannel(client, 0);
 			
 			// Remove channel from client's channels
 			std::map<Client*, std::vector<Channel*> >::iterator it_client_channel = _client_channel.find(client);
@@ -1088,7 +1170,7 @@ void	Server::_leave(std::string& message, int sender_fd) {
 
 	client->reply("PART #" + channel_name + " :" + client->getNickname() + "\n", client->getFd());
 	channel->broadcast(RPL_LEAVE(client->getPrefix(), channel->getName(), client->getNickname()), client); // TODO: add different RPL_KICK to be RPL_LEAVE
-	channel->removeClientFromChannel(client);
+	channel->removeClientFromChannel(client, 0);
 	
 	// Remove channel from client's channels
 	std::map<Client*, std::vector<Channel*> >::iterator it_client_channel = _client_channel.find(client);

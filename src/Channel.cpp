@@ -28,7 +28,11 @@ Channel::Channel(const std::string name, Client* client) {
 	this->broadcast(RPL_JOIN(client->getPrefix(), this->getName()));
 }
 
-Channel::~Channel() {}
+Channel::~Channel() {
+	// for (std::vector<Client*>::iterator clients_it = _clients.begin(); clients_it != _clients.end(); ++clients_it) {
+	// 	removeClientFromChannel((*clients_it), 1);
+	// }
+}
 
 void Channel::broadcastMessage(Client* client, const std::string& message) {
 	std::string time = getCurrentTime();
@@ -124,10 +128,10 @@ bool Channel::addClientToChannel(Client* client, int fd, bool invited) {
 	}
 }
 
-void Channel::removeClientFromChannel(Client* client) { // TODO: remove from ops
-	// if (this->isOperator(client)) {
-	// 	_operators.erase(std::remove(_operators.begin(), _operators.end(), client), _operators.end());
-	// }
+void Channel::removeClientFromChannel(Client* client, bool flag) { // flag == 0 - don't remove from operators
+	if (flag == 1) {
+		_operators.erase(std::remove(_operators.begin(), _operators.end(), client), _operators.end());
+	}
 	_clients.erase(std::remove(_clients.begin(), _clients.end(), client), _clients.end());
 	_clients_count--;
 	client->setInChannel(false);

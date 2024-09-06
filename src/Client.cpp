@@ -7,6 +7,7 @@ Client::Client(int new_fd, const std::string &hostname) : _client_fd(new_fd), _c
 	oss << "user_" << _client_id;
 
 	_nickname = oss.str();
+	is_valid = true;
 }
 
 Client::~Client() {}
