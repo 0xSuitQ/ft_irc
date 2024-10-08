@@ -20,7 +20,7 @@ Server::Server(char **av) : _running(true) {
 	this->_server_socket = -1;
 	this->_port = -1;
 	try {
-        setPort(std::atoi(av[1])); //parser checks
+        setPort(std::atoi(av[1])); // TODO
     } catch (const std::invalid_argument& ia) {
         std::cerr << "Invalid argument: " << ia.what() << '\n';
         return;
@@ -1121,9 +1121,17 @@ void Server::_privmsg(std::string& message, int sender_fd) {
 		}
 
 		Client* target_client = *target_client_it;
+
+		std::string prefix = ":" + client->getPrefix();
+		std::string command = "PRIVMSG";
+		std::string params = target_name + " :" + message;
+
+		std::string full = command + " " + params;
+		
 	
 		// sendPrivateMessage(client, target_client, message);	
-		target_client->reply(RPL_PRIVMSG(client->getPrefix(), target_name, message), target_client->getFd());
+		// client->reply(RPL_PRIVMSG(client->getPrefix(), target_name, message), target_client->getFd());
+		client->reply(full.c_str(), target_client->getFd());
 	}
 }
 
