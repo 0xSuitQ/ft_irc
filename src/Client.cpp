@@ -12,13 +12,6 @@ Client::Client(int new_fd, const std::string &hostname) : _client_fd(new_fd), _c
 
 Client::~Client() {}
 
-// Client& operator=(const Client& other) {
-// 	if (this != &other) {
-
-// 	}
-// 	return *this;
-// }
-
 bool Client::operator==(const Client& other) const {
 	return this->getNickname() == other.getNickname() && this->getUsername() == other.getUsername();
 }

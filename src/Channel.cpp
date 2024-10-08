@@ -29,9 +29,6 @@ Channel::Channel(const std::string name, Client* client) {
 }
 
 Channel::~Channel() {
-	// for (std::vector<Client*>::iterator clients_it = _clients.begin(); clients_it != _clients.end(); ++clients_it) {
-	// 	removeClientFromChannel((*clients_it), 1);
-	// }
 }
 
 void Channel::broadcastMessage(Client* client, const std::string& message) {
@@ -89,10 +86,6 @@ bool Channel::addClientToChannel(Client* client, int fd, bool invited) {
         it_b++;
     }
 
-
-	// if (!validateUserCreds(client, fd)) {
-	// 	return false;
-	// }
 	if (modes.invite_only && !invited) {
 		client->reply(ERR_INVITEONLYCHAN(client->getNickname(), this->getName()), fd);
 		return false;
@@ -108,11 +101,6 @@ bool Channel::addClientToChannel(Client* client, int fd, bool invited) {
         }
 		
 	}
-	// else if (modes.has_key && pass != _key) { // Mb remove it since check it from outer scope
-	// 	sendResponse("Wrong password to the channel\n", fd);
-	// 	return false;
-	// }
-	// if (modes.has_clients_limit && _clients_count >= _clients_limit) {
 	if (this->getHasClientsLimit() && _clients_count >= getClientsLimit()) {
 		client->reply(ERR_CHANNELISFULL(client->getNickname(), this->getName()), fd);
 		return false;
